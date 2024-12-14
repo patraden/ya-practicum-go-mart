@@ -1,0 +1,62 @@
+# See https://golangci-lint.run/usage/linters/
+
+linters:
+  enable-all: true
+  disable:
+    - gomnd
+    - execinquery
+    - exportloopref
+    - tparallel # redundant of paralleltest, which is configurable
+
+linters-settings:
+  # https://github.com/OpenPeeDeeP/depguard
+  depguard:
+    rules:
+      main:
+        list-mode: lax
+        allow:
+          - $gostd
+  
+  paralleltest:
+    ignore-missing-subtests: true
+  
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+  
+  gci:
+    sections:
+      - standard
+      - prefix(github.com/patraden/ya-practicum-go-mart)
+      - default
+  
+  wsl:
+    strict-append: false
+    allow-cuddle-declarations: true
+  
+  varnamelen:
+    max-distance: 15
+    min-name-length: 3
+    ignore-names:
+      - err
+    ignore-decls:
+      - t testing.T
+      - e error
+      - i int
+      - w http.ResponseWriter
+      - r *http.Request
+  
+  exhaustruct:
+    exclude:
+      - '^net/http.Server$'
+      - '^net/http.Cookie$'
+      - '^github\.com/jackc/pgx/v5\.TxOptions$'
+      - '^github\.com/jackc/pgx/v5/pgconn\.PgError$'
+      - '^github\.com/golang-jwt/jwt/v5\.RegisteredClaims$'
+      - '^github\.com/patraden/ya-practicum-go-mart/internal/app/config\.Config$'
+      - '^github\.com/patraden/ya-practicum-go-mart/internal/app/middleware/jwtauth\.Claims$'
+  
+  wrapcheck:
+    ignoreSigRegexps:
+      - database\.WithRetry\( # this method already wraps all external errors

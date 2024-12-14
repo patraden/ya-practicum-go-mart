@@ -1,0 +1,156 @@
+openapi: 3.0.0
+
+info:
+  title: Gophermart API
+  description: Gophermart API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /api/user/register:
+    post:
+      summary: User registration
+      description: Register a new user by providing a unique login and password. After successful registration, the user will be automatically authenticated.
+      operationId: registerUser
+      requestBody:
+        description: User registration data
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                  example: user123
+                password:
+                  type: string
+                  example: securepassword
+              required:
+                - login
+                - password
+      responses:
+        '200':
+          description: User successfully registered and authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User successfully registered and authenticated
+        '400':
+          description: Bad request, invalid format or missing fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Invalid request format
+        '409':
+          description: Conflict, login already taken
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Login is already taken
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Internal server error
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+
+  /api/user/login:
+    post:
+      summary: User login
+      description: Authenticate a user by providing the login and password. Upon successful login, authentication credentials are returned in the form of cookies or an Authorization header.
+      operationId: loginUser
+      requestBody:
+        description: User login credentials
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: string
+                  example: user123
+                password:
+                  type: string
+                  example: securepassword
+              required:
+                - login
+                - password
+      responses:
+        '200':
+          description: User successfully authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User successfully authenticated
+        '400':
+          description: Bad request, invalid format or missing fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Invalid request format
+        '401':
+          description: Unauthorized, invalid login or password
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Invalid login or password
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Internal server error
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+  
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: jwt
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
