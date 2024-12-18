@@ -120,15 +120,17 @@ func (repo *UserRepository) GetUser(ctx context.Context, username string) (*mode
 	return repoUser, nil
 }
 
-func (repo *UserRepository) ValidateUser(ctx context.Context, username, password string) error {
+func (repo *UserRepository) ValidateUser(ctx context.Context, username, password string) (*model.User, error) {
 	user, err := repo.GetUser(ctx, username)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !user.CheckPassword(password) {
-		return e.ErrRepoUserPassMismatch
+		return nil, e.ErrRepoUserPassMismatch
 	}
 
-	return nil
+	user.Password = []byte{}
+
+	return user, nil
 }

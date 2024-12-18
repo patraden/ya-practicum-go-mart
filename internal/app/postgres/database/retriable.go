@@ -63,7 +63,7 @@ func WithRetry(
 
 	err := backoff.Retry(operation, backoff.WithContext(boff, ctx))
 	if err != nil {
-		return e.Wrap("retry error:", err)
+		return e.Wrap("retry error", err)
 	}
 
 	return nil

@@ -53,15 +53,15 @@ func (u *UserUseCase) CreateUser(ctx context.Context, creds *dto.UserCredentials
 	return createdUser, nil
 }
 
-func (u *UserUseCase) ValidateUser(ctx context.Context, creds *dto.UserCredentials) error {
-	err := u.repo.ValidateUser(ctx, creds.Username, creds.Password)
+func (u *UserUseCase) ValidateUser(ctx context.Context, creds *dto.UserCredentials) (*model.User, error) {
+	user, err := u.repo.ValidateUser(ctx, creds.Username, creds.Password)
 
 	if errors.Is(err, e.ErrRepoUserNotFound) {
-		return e.ErrRepoUserNotFound
+		return nil, e.ErrRepoUserNotFound
 	}
 
 	if errors.Is(err, e.ErrRepoUserPassMismatch) {
-		return e.ErrRepoUserPassMismatch
+		return nil, e.ErrRepoUserPassMismatch
 	}
 
 	if err != nil {
@@ -70,8 +70,8 @@ func (u *UserUseCase) ValidateUser(ctx context.Context, creds *dto.UserCredentia
 			Str("username", creds.Username).
 			Msg("internal error")
 
-		return e.ErrUseCaseInternal
+		return nil, e.ErrUseCaseInternal
 	}
 
-	return nil
+	return user, nil
 }

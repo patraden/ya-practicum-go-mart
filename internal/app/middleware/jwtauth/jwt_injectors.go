@@ -1,6 +1,8 @@
 package jwtauth
 
-import "net/http"
+import (
+	"net/http"
+)
 
 const cookieMaxAge = 3600
 

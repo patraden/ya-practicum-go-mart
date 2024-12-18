@@ -222,7 +222,7 @@ func TestUserRepoValidateSuccess(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
 			AddRow(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt))
 
-	err = repo.ValidateUser(ctx, user.Username, userPassStr)
+	_, err = repo.ValidateUser(ctx, user.Username, userPassStr)
 	require.NoError(t, err)
 
 	err = mockPool.ExpectationsWereMet()
@@ -243,7 +243,7 @@ func TestUserRepoValidateFailure(t *testing.T) {
 		WithArgs(user.Username).
 		WillReturnError(sql.ErrNoRows)
 
-	err = repo.ValidateUser(ctx, user.Username, userPassStr)
+	_, err = repo.ValidateUser(ctx, user.Username, userPassStr)
 	require.ErrorIs(t, err, e.ErrRepoUserNotFound)
 
 	// arbitrary error
@@ -252,7 +252,7 @@ func TestUserRepoValidateFailure(t *testing.T) {
 		WithArgs(user.Username).
 		WillReturnError(&pgconn.PgError{Code: pgerrcode.AdminShutdown})
 
-	err = repo.ValidateUser(ctx, user.Username, userPassStr)
+	_, err = repo.ValidateUser(ctx, user.Username, userPassStr)
 	require.Error(t, err)
 
 	// password mismatch
@@ -262,7 +262,7 @@ func TestUserRepoValidateFailure(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
 			AddRow(exUser.ID, exUser.Username, exUser.Password, exUser.CreatedAt, exUser.UpdatedAt))
 
-	err = repo.ValidateUser(ctx, user.Username, userPassStr)
+	_, err = repo.ValidateUser(ctx, user.Username, userPassStr)
 	require.ErrorIs(t, err, e.ErrRepoUserPassMismatch)
 
 	err = mockPool.ExpectationsWereMet()

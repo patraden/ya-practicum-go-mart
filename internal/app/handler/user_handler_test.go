@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ type testCase struct {
 	name           string
 	requestBody    string
 	mockUseCase    func(mockUC *mock.MockIUserUseCase)
-	mockEncoder    func(_ string) (string, error)
+	mockEncoder    func(string, uuid.UUID) (string, error)
 	expectedStatus int
 	expectedHeader string
 	expectedCookie bool
@@ -92,36 +93,36 @@ func TestRegisterUserHandler(t *testing.T) {
 			name:           "successfully registers user",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
 			mockUseCase:    mockedCreateUser(nil),
-			mockEncoder:    func(_ string) (string, error) { return mockToken, nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return mockToken, nil },
 			expectedStatus: http.StatusOK, expectedHeader: "Bearer " + mockToken, expectedCookie: true,
 		},
 		{
 			name:           "invalid request format",
 			requestBody:    `invalid_json`,
 			mockUseCase:    func(_ *mock.MockIUserUseCase) {},
-			mockEncoder:    func(_ string) (string, error) { return "", nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", nil },
 			expectedStatus: http.StatusBadRequest, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "conflict with existing user",
 			requestBody:    `{"username":"existinguser","password":"password123"}`,
 			mockUseCase:    mockedCreateUser(e.ErrRepoUserExists),
-			mockEncoder:    func(_ string) (string, error) { return mockToken, nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return mockToken, nil },
 			expectedStatus: http.StatusConflict, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "internal server error during user creation",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
 			mockUseCase:    mockedCreateUser(e.ErrUseCaseInternal),
-			mockEncoder:    func(_ string) (string, error) { return mockToken, nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return mockToken, nil },
 			expectedStatus: http.StatusInternalServerError, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "internal server error during token generation",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
-			mockUseCase:    func(_ *mock.MockIUserUseCase) {},
-			mockEncoder:    func(_ string) (string, error) { return "", e.ErrTesting },
-			expectedStatus: http.StatusInternalServerError, expectedHeader: "", expectedCookie: false,
+			mockUseCase:    mockedCreateUser(nil),
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", e.ErrTesting },
+			expectedStatus: http.StatusOK, expectedHeader: "", expectedCookie: false,
 		},
 	}
 
@@ -136,12 +137,12 @@ func TestRegisterUserHandler(t *testing.T) {
 func mockedValidateUser(err error) func(mockUC *mock.MockIUserUseCase) {
 	if err == nil {
 		return func(mockUC *mock.MockIUserUseCase) {
-			mockUC.EXPECT().ValidateUser(gomock.Any(), gomock.Any()).Return(nil)
+			mockUC.EXPECT().ValidateUser(gomock.Any(), gomock.Any()).Return(model.NewUser("testuser"), nil)
 		}
 	}
 
 	return func(mockUC *mock.MockIUserUseCase) {
-		mockUC.EXPECT().ValidateUser(gomock.Any(), gomock.Any()).Return(err)
+		mockUC.EXPECT().ValidateUser(gomock.Any(), gomock.Any()).Return(nil, err)
 	}
 }
 
@@ -179,43 +180,43 @@ func TestLoginUserHandler(t *testing.T) {
 			name:           "successfully logs in user",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
 			mockUseCase:    mockedValidateUser(nil),
-			mockEncoder:    func(_ string) (string, error) { return mockToken, nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return mockToken, nil },
 			expectedStatus: http.StatusOK, expectedHeader: "Bearer " + mockToken, expectedCookie: true,
 		},
 		{
 			name:           "invalid request format",
 			requestBody:    `invalid_json`,
 			mockUseCase:    func(_ *mock.MockIUserUseCase) {},
-			mockEncoder:    func(_ string) (string, error) { return "", nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", nil },
 			expectedStatus: http.StatusBadRequest, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "user not found",
 			requestBody:    `{"username":"nonexistentuser","password":"password123"}`,
 			mockUseCase:    mockedValidateUser(e.ErrRepoUserNotFound),
-			mockEncoder:    func(_ string) (string, error) { return "", nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", nil },
 			expectedStatus: http.StatusUnauthorized, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "password mismatch",
 			requestBody:    `{"username":"testuser","password":"wrongpassword"}`,
 			mockUseCase:    mockedValidateUser(e.ErrRepoUserPassMismatch),
-			mockEncoder:    func(_ string) (string, error) { return "", nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", nil },
 			expectedStatus: http.StatusUnauthorized, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "internal server error during validation",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
 			mockUseCase:    mockedValidateUser(e.ErrUseCaseInternal),
-			mockEncoder:    func(_ string) (string, error) { return mockToken, nil },
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return mockToken, nil },
 			expectedStatus: http.StatusInternalServerError, expectedHeader: "", expectedCookie: false,
 		},
 		{
 			name:           "internal server error during token generation",
 			requestBody:    `{"username":"testuser","password":"password123"}`,
-			mockUseCase:    func(_ *mock.MockIUserUseCase) {},
-			mockEncoder:    func(_ string) (string, error) { return "", e.ErrTesting },
-			expectedStatus: http.StatusInternalServerError, expectedHeader: "", expectedCookie: false,
+			mockUseCase:    mockedValidateUser(nil),
+			mockEncoder:    func(_ string, _ uuid.UUID) (string, error) { return "", e.ErrTesting },
+			expectedStatus: http.StatusOK, expectedHeader: "", expectedCookie: false,
 		},
 	}
 

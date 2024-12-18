@@ -10,7 +10,7 @@ var (
 	ErrConfigDBURI          = errors.New("db uri unset")
 	ErrUserPassHash         = errors.New("user password hashing error")
 	ErrPGEmptyPool          = errors.New("empty database conn pool")
-	ErrRepoUserIDCollision  = errors.New("user ID exists")
+	ErrRepoUserIDCollision  = errors.New("user id exists")
 	ErrRepoUserNotFound     = errors.New("user not found")
 	ErrRepoUserExists       = errors.New("user exists")
 	ErrRepoUserPassMismatch = errors.New("user password mismatch")

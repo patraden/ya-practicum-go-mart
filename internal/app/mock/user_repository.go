@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
-
 	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockUserRepository is a mock of UserRepository interface.
@@ -58,11 +57,12 @@ func (mr *MockUserRepositoryMockRecorder) CreateUser(ctx, user any) *gomock.Call
 }
 
 // ValidateUser mocks base method.
-func (m *MockUserRepository) ValidateUser(ctx context.Context, username, password string) error {
+func (m *MockUserRepository) ValidateUser(ctx context.Context, username, password string) (*model.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateUser", ctx, username, password)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*model.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ValidateUser indicates an expected call of ValidateUser.

@@ -36,9 +36,9 @@ goose-status:
 goose-up:
 	@goose -dir db/migrations postgres ${DATABASE_DSN} up
 
-.PHONY: goose-down
-goose-down:
-	@goose -dir db/migrations postgres ${DATABASE_DSN} down
+.PHONY: goose-reset
+goose-reset:
+	@goose -dir db/migrations postgres ${DATABASE_DSN} reset
 
 .PHONY: sqlc
 sqlc:

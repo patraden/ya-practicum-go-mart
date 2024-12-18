@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,18 +20,24 @@ import (
 
 const (
 	jwtSecret = "secret"
-	testuser  = "testuser"
+	userName  = "testuser"
+	userIDStr = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 func mockKeyFunc(_ *jwt.Token) (interface{}, error) {
 	return []byte(jwtSecret), nil
 }
 
-func ExpiredToken() (string, error) {
+func ExpiredToken(t *testing.T) (string, error) {
+	t.Helper()
+
 	now := time.Now()
+	userID, err := uuid.Parse(userIDStr)
+	require.NoError(t, err)
 
 	claims := jwtauth.Claims{
-		Username: testuser,
+		UserID:   userID,
+		Username: userName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
 			ExpiresAt: jwt.NewNumericDate(now.Add(-1 * time.Hour)),
@@ -56,9 +63,11 @@ func TestJWTAuthEncoder(t *testing.T) {
 
 	logger := setupLogger()
 	auth := jwtauth.NewJWTAuth(mockKeyFunc, logger)
+	userID, err := uuid.Parse(userIDStr)
+	require.NoError(t, err)
 
 	encoder := auth.Encoder()
-	token, err := encoder(testuser)
+	token, err := encoder(userName, userID)
 
 	require.NoError(t, err, "Token generation should not error")
 	assert.NotEmpty(t, token, "Token should be generated successfully")
@@ -69,9 +78,11 @@ func TestJWTAuthVerifyTokenValid(t *testing.T) {
 
 	logger := setupLogger()
 	auth := jwtauth.NewJWTAuth(mockKeyFunc, logger)
+	userID, err := uuid.Parse(userIDStr)
+	require.NoError(t, err)
 
 	encoder := auth.Encoder()
-	tokenString, err := encoder(testuser)
+	tokenString, err := encoder(userName, userID)
 	require.NoError(t, err)
 
 	token, err := auth.VerifyToken(tokenString)
@@ -81,7 +92,8 @@ func TestJWTAuthVerifyTokenValid(t *testing.T) {
 
 	claims, ok := token.Claims.(*jwtauth.Claims)
 	assert.True(t, ok, "Claims should be of type *middleware.Claims")
-	assert.Equal(t, testuser, claims.Username, "Username in claims should match")
+	assert.Equal(t, userName, claims.Username, "Username in claims should match")
+	assert.Equal(t, userID, claims.UserID, "User id in claims should match")
 }
 
 func TestJWTAuthVerifyTokenInvalid(t *testing.T) {
@@ -95,11 +107,9 @@ func TestJWTAuthVerifyTokenInvalid(t *testing.T) {
 	require.Error(t, err, "Verification of an invalid token should error")
 	assert.Nil(t, token)
 
-	// empty user
+	// nil username and token
 	encoder := auth.Encoder()
-	tokenString, err := encoder("")
-
-	require.NoError(t, err)
+	tokenString, err := encoder(``, uuid.Nil)
 
 	token, err = auth.VerifyToken(tokenString)
 
@@ -107,7 +117,7 @@ func TestJWTAuthVerifyTokenInvalid(t *testing.T) {
 	assert.Nil(t, token)
 
 	// expired
-	expiredToken, err := ExpiredToken()
+	expiredToken, err := ExpiredToken(t)
 	require.NoError(t, err)
 	token, err = auth.VerifyToken(expiredToken)
 	require.Error(t, err)
@@ -132,7 +142,10 @@ func TestJWTAuthVerifyRequestTokenInHeader(t *testing.T) {
 	logger := setupLogger()
 	auth := jwtauth.NewJWTAuth(mockKeyFunc, logger)
 	encoder := auth.Encoder()
-	tokenString, err := encoder(testuser)
+	userID, err := uuid.Parse(userIDStr)
+	require.NoError(t, err)
+
+	tokenString, err := encoder(userName, userID)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -147,15 +160,18 @@ func TestJWTAuthVerifyRequestTokenInCookie(t *testing.T) {
 	t.Parallel()
 
 	logger := setupLogger()
-	jwt := jwtauth.NewJWTAuth(mockKeyFunc, logger)
-	encoder := jwt.Encoder()
-	tokenString, err := encoder(testuser)
+	auth := jwtauth.NewJWTAuth(mockKeyFunc, logger)
+	encoder := auth.Encoder()
+	userID, err := uuid.Parse(userIDStr)
+	require.NoError(t, err)
+
+	tokenString, err := encoder(userName, userID)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: jwtauth.JWTCookie, Value: tokenString})
 
-	token, err := jwt.VerifyRequest(req, jwtauth.TokenFromCookie)
+	token, err := auth.VerifyRequest(req, jwtauth.TokenFromCookie)
 	require.NoError(t, err)
 	assert.NotNil(t, token)
 }
@@ -186,7 +202,11 @@ func TestVerifierMiddleware(t *testing.T) {
 	t.Run("ValidToken", func(t *testing.T) {
 		t.Parallel()
 
-		token, err := auth.Encoder()(testuser)
+		userID, err := uuid.Parse(userIDStr)
+		require.NoError(t, err)
+
+		encoder := auth.Encoder()
+		token, err := encoder(userName, userID)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -226,7 +246,13 @@ func TestAuthenticatorMiddleware(t *testing.T) {
 	}))
 
 	t.Run("ValidContextToken", func(t *testing.T) {
-		tokenString, err := auth.Encoder()(testuser)
+		t.Parallel()
+
+		userID, err := uuid.Parse(userIDStr)
+		require.NoError(t, err)
+
+		encoder := auth.Encoder()
+		tokenString, err := encoder(userName, userID)
 		require.NoError(t, err)
 		token, err := auth.VerifyToken(tokenString)
 		require.NoError(t, err)

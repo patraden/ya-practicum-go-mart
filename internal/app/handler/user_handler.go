@@ -41,14 +41,7 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.tokenEncoder(creds.Username)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	_, err = h.usecase.CreateUser(r.Context(), &creds)
+	user, err := h.usecase.CreateUser(r.Context(), &creds)
 	if errors.Is(err, e.ErrRepoUserExists) {
 		http.Error(w, err.Error(), http.StatusConflict)
 
@@ -61,9 +54,17 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtauth.StoreTokenInCookie(&w, token)
-	jwtauth.StoreTokenInHeader(&w, token)
+	if token, err := h.tokenEncoder(user.Username, user.ID); err != nil {
+		h.log.Error().
+			Err(err).
+			Msg("failed to add auth token")
+	} else {
+		jwtauth.StoreTokenInCookie(&w, token)
+		jwtauth.StoreTokenInHeader(&w, token)
+	}
+
 	w.WriteHeader(http.StatusOK)
+
 }
 
 func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
@@ -79,14 +80,7 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.tokenEncoder(creds.Username)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	err = h.usecase.ValidateUser(r.Context(), &creds)
+	user, err := h.usecase.ValidateUser(r.Context(), &creds)
 	if errors.Is(err, e.ErrRepoUserNotFound) || errors.Is(err, e.ErrRepoUserPassMismatch) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 
@@ -99,8 +93,15 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwtauth.StoreTokenInCookie(&w, token)
-	jwtauth.StoreTokenInHeader(&w, token)
+	if token, err := h.tokenEncoder(user.Username, user.ID); err != nil {
+		h.log.Error().
+			Err(err).
+			Msg("failed to add auth token")
+	} else {
+		jwtauth.StoreTokenInCookie(&w, token)
+		jwtauth.StoreTokenInHeader(&w, token)
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

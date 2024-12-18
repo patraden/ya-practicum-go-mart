@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 )
 
-type TokenEncoder func(string) (string, error)
+type TokenEncoder func(string, uuid.UUID) (string, error)
 
 // contextKey is a value for use with context.WithValue. It's used as
 // a pointer so it fits in an interface{} without allocation. This technique
@@ -34,7 +35,8 @@ const (
 
 type Claims struct {
 	jwt.RegisteredClaims
-	Username string `json:"username"`
+	UserID   uuid.UUID `json:"user_id"`
+	Username string    `json:"username"`
 }
 
 func (c Claims) Validate() error {
@@ -58,10 +60,11 @@ func NewJWTAuth(keyFunc jwt.Keyfunc, log *zerolog.Logger) *JWTAuth {
 }
 
 func (auth *JWTAuth) Encoder() TokenEncoder {
-	return func(username string) (string, error) {
+	return func(username string, userID uuid.UUID) (string, error) {
 		now := time.Now()
 
 		claims := &Claims{
+			UserID:   userID,
 			Username: username,
 			RegisteredClaims: jwt.RegisteredClaims{
 				IssuedAt:  jwt.NewNumericDate(now),
@@ -71,6 +74,7 @@ func (auth *JWTAuth) Encoder() TokenEncoder {
 
 		auth.log.Info().
 			Str("method", "HS256").
+			Str("user_id", userID.String()).
 			Str("username", username).
 			Msg("generating new user token")
 
@@ -79,6 +83,7 @@ func (auth *JWTAuth) Encoder() TokenEncoder {
 		signingKey, err := auth.keyFunc(token)
 		if err != nil {
 			auth.log.Error().Err(err).
+				Str("user_id", userID.String()).
 				Str("username", username).
 				Msg(`failed to retrieve signing key`)
 
@@ -88,6 +93,7 @@ func (auth *JWTAuth) Encoder() TokenEncoder {
 		tokenString, err := token.SignedString(signingKey)
 		if err != nil {
 			auth.log.Error().Err(err).
+				Str("user_id", userID.String()).
 				Str("username", username).
 				Msg(`failed to sign token`)
 

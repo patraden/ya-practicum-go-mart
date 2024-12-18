@@ -8,5 +8,5 @@ import (
 
 type UserRepository interface {
 	CreateUser(ctx context.Context, user *model.User) (*model.User, error)
-	ValidateUser(ctx context.Context, username, password string) error
+	ValidateUser(ctx context.Context, username, password string) (*model.User, error)
 }

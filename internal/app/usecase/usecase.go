@@ -9,5 +9,5 @@ import (
 
 type IUserUseCase interface {
 	CreateUser(ctx context.Context, creds *dto.UserCredentials) (*model.User, error)
-	ValidateUser(ctx context.Context, creds *dto.UserCredentials) error
+	ValidateUser(ctx context.Context, creds *dto.UserCredentials) (*model.User, error)
 }
