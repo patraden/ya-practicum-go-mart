@@ -28,11 +28,13 @@ CREATE TABLE IF NOT EXISTS order_transactions (
 
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(userId);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_order_transactions_user_id ON transactions(userId);
+CREATE INDEX IF NOT EXISTS idx_order_transactions_user_id ON order_transactions(userId);
+CREATE UNIQUE INDEX uniq_order_id_is_debit_true ON order_transactions (orderId) WHERE is_debit;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS orders cascade;
+DROP TABLE IF EXISTS order_transactions cascade;
 DROP TYPE IF EXISTS order_status_enum;
 -- +goose StatementEnd

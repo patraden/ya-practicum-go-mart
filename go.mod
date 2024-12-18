@@ -13,6 +13,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/pashagolub/pgxmock/v4 v4.3.0
 	github.com/rs/zerolog v1.33.0
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.0
 	golang.org/x/crypto v0.30.0

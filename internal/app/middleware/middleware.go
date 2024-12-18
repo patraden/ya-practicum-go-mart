@@ -24,3 +24,7 @@ func StripSlashes() func(next http.Handler) http.Handler {
 func Verifier(auth *jwtauth.JWTAuth) func(next http.Handler) http.Handler {
 	return jwtauth.Verifier(auth)
 }
+
+func Authenticator() func(next http.Handler) http.Handler {
+	return jwtauth.Authenticator()
+}

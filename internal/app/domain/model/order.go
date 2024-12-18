@@ -32,16 +32,16 @@ func (s Status) Valid() bool {
 
 type Order struct {
 	ID        int64     `json:"order_id"`
-	UserId    uuid.UUID `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	Status    Status    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func NewOrder(id int64, userId uuid.UUID) *Order {
+func NewOrder(id int64, userID uuid.UUID) *Order {
 	return &Order{
 		ID:        id,
-		UserId:    userId,
+		UserID:    userID,
 		Status:    StatusNew,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

@@ -44,7 +44,7 @@ func main() {
 	repo := postgres.NewUserRepository(pgdb.ConnPool, log)
 	userUseCase := usecase.NewUserUseCase(repo, log)
 	userHandler := handler.NewUserHandler(userUseCase, auth.Encoder(), log)
-	router := handler.NewRouter(log, userHandler)
+	router := handler.NewRouter(log, auth, userHandler)
 
 	HTTPListenAndServe(router, cfg, log)
 }

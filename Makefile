@@ -47,6 +47,7 @@ sqlc:
 .PHONY: code
 code:
 	@easyjson -all internal/app/dto/user_credentials.go
+	@easyjson -all internal/app/domain/model/user_balance.go
 	@mockgen -source=internal/app/repository/user_repository.go -destination=internal/app/mock/user_repository.go -package=mock UserRepository
 	@mockgen -source=internal/app/usecase/usecase.go -destination=internal/app/mock/usecase.go -package=mock IUserUseCase
 

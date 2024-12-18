@@ -196,7 +196,7 @@ func Verifier(auth *JWTAuth) func(http.Handler) http.Handler {
 // Verifier middleware request context values. The Authenticator sends a 401 Unauthorized
 // response for any unverified tokens and passes the good ones through. It's just fine
 // until you decide to write something similar and customize your client response.
-func Authenticator(_ *JWTAuth) func(http.Handler) http.Handler {
+func Authenticator() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		hfn := func(w http.ResponseWriter, r *http.Request) {
 			token, _, err := FromContext(r.Context())

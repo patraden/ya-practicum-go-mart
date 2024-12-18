@@ -5,10 +5,75 @@
 package sql
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
 )
+
+type OrderStatusEnum string
+
+const (
+	OrderStatusEnumNEW        OrderStatusEnum = "NEW"
+	OrderStatusEnumREGISTERED OrderStatusEnum = "REGISTERED"
+	OrderStatusEnumPROCESSING OrderStatusEnum = "PROCESSING"
+	OrderStatusEnumINVALID    OrderStatusEnum = "INVALID"
+	OrderStatusEnumPROCESSED  OrderStatusEnum = "PROCESSED"
+)
+
+func (e *OrderStatusEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OrderStatusEnum(s)
+	case string:
+		*e = OrderStatusEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OrderStatusEnum: %T", src)
+	}
+	return nil
+}
+
+type NullOrderStatusEnum struct {
+	OrderStatusEnum OrderStatusEnum
+	Valid           bool // Valid is true if OrderStatusEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOrderStatusEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.OrderStatusEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OrderStatusEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOrderStatusEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OrderStatusEnum), nil
+}
+
+type Order struct {
+	ID        int64            `db:"id"`
+	Userid    pgtype.UUID      `db:"userid"`
+	CreatedAt pgtype.Timestamp `db:"created_at"`
+	Status    OrderStatusEnum  `db:"status"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at"`
+}
+
+type OrderTransaction struct {
+	Orderid   int64            `db:"orderid"`
+	Userid    pgtype.UUID      `db:"userid"`
+	IsDebit   bool             `db:"is_debit"`
+	Amount    pgtype.Numeric   `db:"amount"`
+	CreatedAt pgtype.Timestamp `db:"created_at"`
+}
 
 type User struct {
 	ID        uuid.UUID `db:"id"`
@@ -16,4 +81,15 @@ type User struct {
 	Password  []byte    `db:"password"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
+}
+
+type UserBalance struct {
+	Userid    uuid.UUID       `db:"userid"`
+	Balance   decimal.Decimal `db:"balance"`
+	Withdrawn decimal.Decimal `db:"withdrawn"`
+	UpdatedAt time.Time       `db:"updated_at"`
+}
+
+type UserLock struct {
+	Userid uuid.UUID `db:"userid"`
 }

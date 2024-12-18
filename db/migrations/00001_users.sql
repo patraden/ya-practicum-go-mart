@@ -9,19 +9,20 @@ CREATE TABLE users (
 );
 
 CREATE TABLE user_balances (
-  userID UUID PRIMARY KEY,
-  balance DECIMAL(12, 2) NOT NULL DEFAULT 0,
-  withdrawn DECIMAL(12, 2) NOT NULL DEFAULT 0,
-  updated_at NOT NULL DEFAULT CURRENT_TIMESTAMP
+  userId UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  balance NUMERIC(15, 5) NOT NULL DEFAULT 0,
+  withdrawn NUMERIC(15, 5) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE user_locks (
-  user_id UUID PRIMARY KEY,
+  userId UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
 );
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS user_locks;
+DROP TABLE IF EXISTS user_balances;
 DROP TABLE IF EXISTS users;
 -- +goose StatementEnd

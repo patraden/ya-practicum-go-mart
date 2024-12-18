@@ -17,6 +17,14 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+          - column: "user_balances.userid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - column: "user_locks.userid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
           - column: "users.created_at"
             go_type:
               import: "time"
@@ -25,3 +33,15 @@ sql:
             go_type:
               import: "time"
               type: "Time"
+          - column: "user_balances.updated_at"
+            go_type:
+              import: "time"
+              type: "Time"
+          - column: "user_balances.balance"
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "Decimal"
+          - column: "user_balances.withdrawn"
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "Decimal"

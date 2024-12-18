@@ -9,6 +9,8 @@ import (
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 )
 
+type QueryFunc = func() error
+
 type Database struct {
 	connString string
 	ConnPool   ConnenctionPool

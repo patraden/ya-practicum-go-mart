@@ -144,6 +144,38 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
   
+  /api/user/balance:
+    get:
+      summary: Get user's current balance
+      description: >
+        Returns the user's current loyalty points balance and the total withdrawn points since account registration. 
+        Accessible only to authorized users.
+      responses:
+        '200':
+          description: Successful request processing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current:
+                    type: number
+                    format: float
+                    example: 500.5
+                    description: Current loyalty points balance.
+                  withdrawn:
+                    type: number
+                    format: float
+                    example: 42
+                    description: Total withdrawn points since account registration.
+        '401':
+          description: User is not authorized.
+        '500':
+          description: Internal server error.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+  
 components:
   securitySchemes:
     cookieAuth:

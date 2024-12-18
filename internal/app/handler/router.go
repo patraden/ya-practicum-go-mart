@@ -7,9 +7,10 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/patraden/ya-practicum-go-mart/internal/app/middleware"
+	"github.com/patraden/ya-practicum-go-mart/internal/app/middleware/jwtauth"
 )
 
-func NewRouter(log *zerolog.Logger, handlers ...Handler) http.Handler {
+func NewRouter(log *zerolog.Logger, auth *jwtauth.JWTAuth, handlers ...Handler) http.Handler {
 	router := chi.NewRouter()
 
 	// Apply common middleware to all routes
@@ -20,7 +21,7 @@ func NewRouter(log *zerolog.Logger, handlers ...Handler) http.Handler {
 
 	// Register handlers
 	for _, h := range handlers {
-		h.RegisterRoutes(router)
+		h.RegisterRoutes(router, auth)
 	}
 
 	return router

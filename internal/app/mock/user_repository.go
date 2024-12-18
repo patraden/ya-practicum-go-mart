@@ -13,8 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
-	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 )
 
 // MockUserRepository is a mock of UserRepository interface.
@@ -54,6 +56,21 @@ func (m *MockUserRepository) CreateUser(ctx context.Context, user *model.User) (
 func (mr *MockUserRepositoryMockRecorder) CreateUser(ctx, user any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockUserRepository)(nil).CreateUser), ctx, user)
+}
+
+// GetUserBalance mocks base method.
+func (m *MockUserRepository) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.UserBalance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserBalance", ctx, userID)
+	ret0, _ := ret[0].(*model.UserBalance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserBalance indicates an expected call of GetUserBalance.
+func (mr *MockUserRepositoryMockRecorder) GetUserBalance(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserBalance", reflect.TypeOf((*MockUserRepository)(nil).GetUserBalance), ctx, userID)
 }
 
 // ValidateUser mocks base method.

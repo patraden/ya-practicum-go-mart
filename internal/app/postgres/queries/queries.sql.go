@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const CreateUser = `-- name: CreateUser :one
@@ -51,6 +52,28 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const CreateUserBalances = `-- name: CreateUserBalances :exec
+INSERT INTO user_balances (userID, balance, withdrawn, updated_at)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateUserBalancesParams struct {
+	Userid    uuid.UUID       `db:"userid"`
+	Balance   decimal.Decimal `db:"balance"`
+	Withdrawn decimal.Decimal `db:"withdrawn"`
+	UpdatedAt time.Time       `db:"updated_at"`
+}
+
+func (q *Queries) CreateUserBalances(ctx context.Context, arg CreateUserBalancesParams) error {
+	_, err := q.db.Exec(ctx, CreateUserBalances,
+		arg.Userid,
+		arg.Balance,
+		arg.Withdrawn,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const GetUser = `-- name: GetUser :one
 SELECT id, username, password, created_at, updated_at
 FROM users
@@ -65,6 +88,24 @@ func (q *Queries) GetUser(ctx context.Context, username string) (User, error) {
 		&i.Username,
 		&i.Password,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const GetUserBalances = `-- name: GetUserBalances :one
+SELECT userID, balance, withdrawn, updated_at
+FROM user_balances 
+WHERE userID = $1
+`
+
+func (q *Queries) GetUserBalances(ctx context.Context, userid uuid.UUID) (UserBalance, error) {
+	row := q.db.QueryRow(ctx, GetUserBalances, userid)
+	var i UserBalance
+	err := row.Scan(
+		&i.Userid,
+		&i.Balance,
+		&i.Withdrawn,
 		&i.UpdatedAt,
 	)
 	return i, err

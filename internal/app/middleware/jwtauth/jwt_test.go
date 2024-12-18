@@ -110,6 +110,7 @@ func TestJWTAuthVerifyTokenInvalid(t *testing.T) {
 	// nil username and token
 	encoder := auth.Encoder()
 	tokenString, err := encoder(``, uuid.Nil)
+	require.NoError(t, err)
 
 	token, err = auth.VerifyToken(tokenString)
 
@@ -239,7 +240,7 @@ func TestAuthenticatorMiddleware(t *testing.T) {
 
 	logger := setupLogger()
 	auth := jwtauth.NewJWTAuth(mockKeyFunc, logger)
-	authenticator := jwtauth.Authenticator(auth)
+	authenticator := jwtauth.Authenticator()
 
 	handler := authenticator(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

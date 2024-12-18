@@ -36,7 +36,7 @@ func WithRetry(
 	boff backoff.BackOff,
 	log *zerolog.Logger,
 	uniqueViolationError error,
-	query func() error,
+	query QueryFunc,
 ) error {
 	operation := func() error {
 		err := query()

@@ -6,8 +6,8 @@ import (
 
 const cookieMaxAge = 3600
 
-func StoreTokenInCookie(w *http.ResponseWriter, token string) {
-	http.SetCookie(*w, &http.Cookie{
+func StoreTokenInCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
 		Name:     JWTCookie,
 		Value:    token,
 		Path:     "/",
@@ -16,6 +16,6 @@ func StoreTokenInCookie(w *http.ResponseWriter, token string) {
 	})
 }
 
-func StoreTokenInHeader(w *http.ResponseWriter, token string) {
-	(*w).Header().Add(`Authorization`, `Bearer `+token)
+func StoreTokenInHeader(w http.ResponseWriter, token string) {
+	w.Header().Add(`Authorization`, `Bearer `+token)
 }

@@ -30,7 +30,7 @@ func NewUser(username string) *User {
 func (u *User) SetPassword(password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return e.ErrUserPassHash
+		return e.ErrModelUserPassHash
 	}
 
 	u.Password = hashedPassword
@@ -40,4 +40,14 @@ func (u *User) SetPassword(password string) error {
 
 func (u *User) CheckPassword(password string) bool {
 	return bcrypt.CompareHashAndPassword(u.Password, []byte(password)) == nil
+}
+
+func (u *User) NoPassword() *User {
+	return &User{
+		ID:        u.ID,
+		Username:  u.Username,
+		Password:  []byte{},
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}
 }

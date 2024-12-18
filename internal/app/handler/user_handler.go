@@ -10,8 +10,15 @@ import (
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/dto"
+	"github.com/patraden/ya-practicum-go-mart/internal/app/middleware"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/middleware/jwtauth"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/usecase"
+)
+
+const (
+	ContentType     = "Content-Type"
+	ContentTypeText = "text/plain"
+	ContentTypeJSON = "application/json"
 )
 
 type UserHandler struct {
@@ -59,12 +66,9 @@ func (h *UserHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Msg("failed to add auth token")
 	} else {
-		jwtauth.StoreTokenInCookie(&w, token)
-		jwtauth.StoreTokenInHeader(&w, token)
+		jwtauth.StoreTokenInCookie(w, token)
+		jwtauth.StoreTokenInHeader(w, token)
 	}
-
-	w.WriteHeader(http.StatusOK)
-
 }
 
 func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
@@ -98,16 +102,44 @@ func (h *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Msg("failed to add auth token")
 	} else {
-		jwtauth.StoreTokenInCookie(&w, token)
-		jwtauth.StoreTokenInHeader(&w, token)
+		jwtauth.StoreTokenInCookie(w, token)
+		jwtauth.StoreTokenInHeader(w, token)
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
-func (h *UserHandler) RegisterRoutes(router chi.Router) {
+func (h *UserHandler) UserBalance(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	balance, err := h.usecase.GetUserBalance(r.Context(), claims.UserID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	if _, err := easyjson.MarshalToWriter(balance, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set(ContentType, ContentTypeJSON)
+}
+
+func (h *UserHandler) RegisterRoutes(router chi.Router, auth *jwtauth.JWTAuth) {
 	router.Group(func(r chi.Router) {
 		r.Post("/api/user/register", h.RegisterUser)
 		r.Post("/api/user/login", h.LoginUser)
+	})
+
+	router.Group(func(r chi.Router) {
+		r.Use(middleware.Verifier(auth))
+		r.Use(middleware.Authenticator())
+		r.Get("/api/user/balance", h.UserBalance)
 	})
 }

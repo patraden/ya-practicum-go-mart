@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
@@ -74,4 +75,23 @@ func (u *UserUseCase) ValidateUser(ctx context.Context, creds *dto.UserCredentia
 	}
 
 	return user, nil
+}
+
+func (u *UserUseCase) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.UserBalance, error) {
+	userBalance, err := u.repo.GetUserBalance(ctx, userID)
+
+	if errors.Is(err, e.ErrRepoUserBalanceNotFound) {
+		return nil, e.ErrRepoUserBalanceNotFound
+	}
+
+	if err != nil {
+		u.log.
+			Error().Err(err).
+			Str("user_id", userID.String()).
+			Msg("internal error")
+
+		return nil, e.ErrUseCaseInternal
+	}
+
+	return userBalance, nil
 }
