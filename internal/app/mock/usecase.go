@@ -14,10 +14,9 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-
 	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 	dto "github.com/patraden/ya-practicum-go-mart/internal/app/dto"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockIUserUseCase is a mock of IUserUseCase interface.

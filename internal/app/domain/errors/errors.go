@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 var (
@@ -26,9 +27,26 @@ var (
 	ErrAuthNoToken             = errors.New("no auth token found")
 	ErrJSONUnmarshal           = errors.New("failed to parse json")
 	ErrJSONMarshal             = errors.New("failed to create json")
+	ErrAdapterMissedEvent      = errors.New("event missed")
+	ErrAdpaterDLQEvent         = errors.New("event sent to dlq")
+	ErrAdpaterAccrualNotAlive  = errors.New("accrual system is not alive")
 	ErrTesting                 = errors.New("general testing error")
 )
 
 func Wrap(msg string, err error) error {
 	return fmt.Errorf("%s: %w", msg, err)
+}
+
+type AccrualClientError struct {
+	StatusCode int
+	RetryAfter time.Duration
+	Err        error
+}
+
+func (e *AccrualClientError) Error() string {
+	return fmt.Sprintf("%d: %v", e.StatusCode, e.Err)
+}
+
+func (e *AccrualClientError) Unwrap() error {
+	return e.Err
 }

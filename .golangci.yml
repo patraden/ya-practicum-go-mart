@@ -56,7 +56,12 @@ linters-settings:
       - '^github\.com/golang-jwt/jwt/v5\.RegisteredClaims$'
       - '^github\.com/patraden/ya-practicum-go-mart/internal/app/config\.Config$'
       - '^github\.com/patraden/ya-practicum-go-mart/internal/app/middleware/jwtauth\.Claims$'
+      - '^github\.com/patraden/ya-practicum-go-mart/pkg/eventbus\.EventBus$'
   
   wrapcheck:
     ignoreSigRegexps:
       - database\.WithRetry\( # this method already wraps all external errors
+  
+  gosec:
+    excludes:
+      - G115 # Potential integer overflow when converting between integer types

@@ -14,9 +14,8 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-
 	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockUserRepository is a mock of UserRepository interface.

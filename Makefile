@@ -49,11 +49,14 @@ code:
 	@easyjson -all internal/app/dto/user_credentials.go
 	@easyjson -all internal/app/domain/model/user_balance.go
 	@mockgen -source=internal/app/repository/user_repository.go -destination=internal/app/mock/user_repository.go -package=mock UserRepository
+	@mockgen -source=internal/app/repository/order_repository.go -destination=internal/app/mock/order_repository.go -package=mock OrderRepository
 	@mockgen -source=internal/app/usecase/usecase.go -destination=internal/app/mock/usecase.go -package=mock IUserUseCase
+	@mockgen -source=internal/app/integration/accrual/client.go -destination=internal/app/mock/accrual_client.go -package=mock Client
 
 .PHONY: lint
 lint:
 	@goimports -e -w -local "github.com/patraden/ya-practicum-go-mart" .
 	@gofumpt -w ./cmd/gophermart ./internal/app
+	@gofumpt -w ./cmd/gophermart ./pkg
 	@go vet -vettool=$(VETTOOL) ./...
 	@golangci-lint run ./...
