@@ -3,7 +3,6 @@ package accrual
 import (
 	"context"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,12 +13,12 @@ import (
 
 // event handler used by adapter's scheduled jobs.
 type OrderEventHandler struct {
-	client Client
+	client IClient
 	repo   repository.OrderRepository
 }
 
 func NewOrderEventHandler(
-	client Client,
+	client IClient,
 	repo repository.OrderRepository,
 ) *OrderEventHandler {
 	return &OrderEventHandler{
@@ -33,12 +32,12 @@ func (eh *OrderEventHandler) Handle(ctx context.Context, event *Event) (*Event, 
 		return event, e.ErrAdpaterAccrualNotAlive
 	}
 
-	orderStatus, err := eh.client.GetOrderStatus(ctx, event.orderStatus.ID)
+	orderStatus, err := eh.client.GetOrderStatus(ctx, event.orderStatus.ID, event.orderStatus.UserID)
 	if err != nil {
 		return event, e.Wrap("Adapter: accrual system error", err)
 	}
 
-	err = eh.repo.UpdateOrderStatus(ctx, orderStatus)
+	err = eh.repo.UpdateStatus(ctx, orderStatus)
 	if err != nil {
 		// for now register internal failures only.
 		event.AddFailure()
@@ -61,17 +60,18 @@ func (eh *OrderEventHandler) OrderJobFn(
 		if err != nil {
 			log.Error().Err(err).
 				Int64("JobID", jobID).
+				Int64("EventTS", event.ts).
 				Int64("OrderID", newEvent.orderStatus.ID).
 				Str("Status", string(newEvent.orderStatus.Status)).
 				Msg("Adapter: event processing error")
 		}
 
 		// enqueue asap to minimize risks of lost events
-		// when do we add failure to event?
 		enqErr := qmgr.enqueue(newEvent)
 		if errors.Is(enqErr, e.ErrAdapterMissedEvent) {
 			log.Error().Err(enqErr).
 				Int64("JobID", jobID).
+				Int64("EventTS", event.ts).
 				Int64("OrderID", newEvent.orderStatus.ID).
 				Str("Status", string(newEvent.orderStatus.Status)).
 				Msg("Adapter: event missed!")
@@ -88,8 +88,13 @@ func (eh *OrderEventHandler) OrderJobFn(
 			return
 		}
 
-		var clientErr *e.AccrualClientError
-		if errors.As(err, &clientErr) && clientErr.StatusCode == http.StatusTooManyRequests {
+		var clientErr *e.AccrualTooManyRequestsError
+		if errors.As(err, &clientErr) {
+			log.Info().
+				Int64("JobID", jobID).
+				Dur("RetryAfter", clientErr.RetryAfter).
+				Msg("Adapter: sleeping after too many requests.")
+
 			sleepWithContext(ctx, clientErr.RetryAfter, func() {
 				log.Info().
 					Int64("JobID", jobID).
@@ -114,9 +119,10 @@ func (dlqh *DQLEventHandler) JobFn(
 		if event.Failures > maxEventFailures {
 			log.Error().
 				Int64("JobID", jobID).
-				Uint32("Failures", event.Failures).
+				Int64("EventTS", event.ts).
 				Int64("OrderID", event.orderStatus.ID).
 				Str("Status", string(event.orderStatus.Status)).
+				Uint32("Failures", event.Failures).
 				Msg("Adapter: event discarded!")
 
 			return
@@ -126,6 +132,7 @@ func (dlqh *DQLEventHandler) JobFn(
 		if errors.Is(err, e.ErrAdapterMissedEvent) {
 			log.Error().Err(err).
 				Int64("JobID", jobID).
+				Int64("EventTS", event.ts).
 				Int64("OrderID", event.orderStatus.ID).
 				Str("Status", string(event.orderStatus.Status)).
 				Msg("Adapter: event missed!")

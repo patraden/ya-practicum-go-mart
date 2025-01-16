@@ -13,6 +13,7 @@ import (
 
 	"github.com/patraden/ya-practicum-go-mart/internal/app/config"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/handler"
+	"github.com/patraden/ya-practicum-go-mart/internal/app/integration/accrual"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/logger"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/middleware/jwtauth"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/postgres"
@@ -41,15 +42,23 @@ func main() {
 			Msg("Failed to ping db")
 	}
 
-	repo := postgres.NewUserRepository(pgdb.ConnPool, log)
-	userUseCase := usecase.NewUserUseCase(repo, log)
+	accrualClient := accrual.NewClient(cfg.AccrualAddress)
+	repoUser := postgres.NewUserRepository(pgdb.ConnPool, log)
+	repoOrder := postgres.NewOrderRepository(pgdb.ConnPool, log)
+	repoTransactions := postgres.NewOrderTransactionsRepository(pgdb.ConnPool, log)
+	adapter := accrual.NewAdapter(accrualClient, repoOrder, cfg.QueueSize, cfg.AdapterJobsDelay, cfg.AdapterJobsDelay, log)
+	userUseCase := usecase.NewUserUseCase(repoUser, log)
+	orderUseCase := usecase.NewOrderUseCase(repoOrder, adapter, log)
+	transactionsUseCase := usecase.NewTransactionsUseCase(repoTransactions, log)
 	userHandler := handler.NewUserHandler(userUseCase, auth.Encoder(), log)
-	router := handler.NewRouter(log, auth, userHandler)
+	orderHandler := handler.NewOrdersHandler(orderUseCase, log)
+	transactionsHandler := handler.NewTransactionsHandler(transactionsUseCase, log)
+	router := handler.NewRouter(log, auth, userHandler, orderHandler, transactionsHandler)
 
-	HTTPListenAndServe(router, cfg, log)
+	HTTPListenAndServe(router, adapter, cfg, log)
 }
 
-func HTTPListenAndServe(router http.Handler, cfg *config.Config, log *zerolog.Logger) {
+func HTTPListenAndServe(router http.Handler, adapter *accrual.Adapter, cfg *config.Config, log *zerolog.Logger) {
 	server := &http.Server{
 		Addr:              cfg.RunAddress,
 		Handler:           router,
@@ -59,10 +68,17 @@ func HTTPListenAndServe(router http.Handler, cfg *config.Config, log *zerolog.Lo
 	}
 
 	stopChan := make(chan os.Signal, 1)
+	adapterCtx, adapterCancel := context.WithCancel(context.Background())
+
 	signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
+		adapter.Start(adapterCtx)
+
 		log.Info().
+			Str("RUN_ADDRESS", cfg.RunAddress).
+			Str("ACCRUAL_SYSTEM_ADDRESS", cfg.AccrualAddress).
+			Str("DATABASE_URI", cfg.DatabaseURI).
 			Msg("Server started")
 
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -79,12 +95,15 @@ func HTTPListenAndServe(router http.Handler, cfg *config.Config, log *zerolog.Lo
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), cfg.HTTPShutdownTimeOut)
 	defer cancel()
 
+	adapterCancel()
+	adapter.WaitStop(ctxShutdown)
+
 	if err := server.Shutdown(ctxShutdown); err != nil {
 		log.Error().
 			Err(err).
 			Msg("Server failed to shutdown gracefully")
 	} else {
 		log.Info().
-			Msg("Server gracefully stopped")
+			Msg("Server shutdown gracefully")
 	}
 }

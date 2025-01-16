@@ -6,8 +6,8 @@ import (
 	"errors"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
@@ -30,29 +30,28 @@ func NewUserRepository(pool database.ConnenctionPool, log *zerolog.Logger) *User
 	}
 }
 
-func (repo *UserRepository) withRetry(ctx context.Context, query database.QueryFunc) error {
+func (repo *UserRepository) withRetry(ctx context.Context, dbOp func() error) error {
 	return database.WithRetry(
 		ctx,
 		backoff.NewExponentialBackOff(),
 		repo.log,
-		e.ErrRepoUserIDCollision,
-		query,
+		dbOp,
 	)
 }
 
 func (repo *UserRepository) CreateUser(ctx context.Context, user *model.User) (*model.User, error) {
 	var repoUser *model.User
 
-	query := func() error {
-		sqluser, err := repo.queries.CreateUser(ctx, *q.CreateUserParamsFromModel(user))
-		if err != nil {
-			repo.log.
-				Error().Err(err).
-				Str("user_id", user.ID.String()).
-				Str("user_name", user.Username).
-				Msg("user create query failure")
+	queryFn := func(queries *q.Queries) error {
+		sqluser, err := queries.CreateUser(ctx, *q.CreateUserParamsFromModel(user))
 
-			return e.Wrap("repo create user", err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return e.ErrRepoUserIDCollision
+		}
+
+		if err != nil {
+			return e.Wrap("CreateUser", err)
 		}
 
 		repoUser = q.ToModelUser(sqluser.NoPassword())
@@ -61,30 +60,18 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user *model.User) (*
 			return e.ErrRepoUserExists
 		}
 
-		balance := model.NewUserBalance(repoUser.ID)
-		if err = repo.queries.CreateUserBalances(ctx, *q.CreateUserBalancesParamsFromModel(balance)); err != nil {
-			repo.log.
-				Error().Err(err).
-				Str("user_id", user.ID.String()).
-				Str("user_name", user.Username).
-				Msg("user balance create query failure")
-
-			return e.Wrap("repo create user", err)
-		}
-
 		return nil
 	}
 
-	queryInTrx := database.WithTransaction(ctx, query, repo.connPool, pgx.TxOptions{})
-
-	if err := repo.withRetry(ctx, queryInTrx); err != nil {
+	dbOp := func() error { return queryFn(repo.queries) }
+	if err := repo.withRetry(ctx, dbOp); err != nil {
 		repo.log.
 			Error().Err(err).
 			Str("user_id", user.ID.String()).
 			Str("user_name", user.Username).
-			Msg("failed to create user")
+			Msg("Repo: failed to create user")
 
-		return nil, e.Wrap("repo create user", err)
+		return nil, err
 	}
 
 	return repoUser, nil
@@ -93,20 +80,14 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user *model.User) (*
 func (repo *UserRepository) GetUser(ctx context.Context, username string) (*model.User, error) {
 	var repoUser *model.User
 
-	query := func() error {
-		sqluser, err := repo.queries.GetUser(ctx, username)
-
+	queryFn := func(queries *q.Queries) error {
+		sqluser, err := queries.GetUser(ctx, username)
 		if errors.Is(err, sql.ErrNoRows) {
 			return e.ErrRepoUserNotFound
 		}
 
 		if err != nil {
-			repo.log.
-				Error().Err(err).
-				Str("user_name", username).
-				Msg("failed to execute user get query")
-
-			return e.Wrap("repo get user", err)
+			return e.Wrap("GetUser", err)
 		}
 
 		repoUser = q.ToModelUser(sqluser)
@@ -114,8 +95,14 @@ func (repo *UserRepository) GetUser(ctx context.Context, username string) (*mode
 		return nil
 	}
 
-	if err := repo.withRetry(ctx, query); err != nil {
-		return nil, e.Wrap("repo get user", err)
+	dbOp := func() error { return queryFn(repo.queries) }
+	if err := repo.withRetry(ctx, dbOp); err != nil {
+		repo.log.
+			Error().Err(err).
+			Str("user_name", username).
+			Msg("Repo: failed to get user")
+
+		return nil, err
 	}
 
 	return repoUser, nil
@@ -132,35 +119,4 @@ func (repo *UserRepository) ValidateUser(ctx context.Context, username, password
 	}
 
 	return user.NoPassword(), nil
-}
-
-func (repo *UserRepository) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.UserBalance, error) {
-	var userBalance *model.UserBalance
-
-	query := func() error {
-		sqlUserBalance, err := repo.queries.GetUserBalances(ctx, userID)
-
-		if errors.Is(err, sql.ErrNoRows) {
-			return e.ErrRepoUserBalanceNotFound
-		}
-
-		if err != nil {
-			repo.log.
-				Error().Err(err).
-				Str("user_id", userID.String()).
-				Msg("failed to execute user balance get query")
-
-			return e.Wrap("repo get user balance", err)
-		}
-
-		userBalance = q.ToModelUserBalance(sqlUserBalance)
-
-		return nil
-	}
-
-	if err := repo.withRetry(ctx, query); err != nil {
-		return nil, e.Wrap("repo get user balance", err)
-	}
-
-	return userBalance, nil
 }

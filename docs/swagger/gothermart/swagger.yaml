@@ -176,6 +176,293 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
   
+  /api/user/orders:
+    post:
+      summary: Upload an order number
+      description: >
+        Allows authenticated users to upload an order number for processing. The order number
+        must be a sequence of digits of arbitrary length. The input will be validated using
+        the Luhn algorithm.
+      operationId: uploadOrder
+      requestBody:
+        description: Order number as plain text
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              description: Sequence of digits representing the order number.
+              example: "12345678903"
+      responses:
+        '200':
+          description: Order number already uploaded by this user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Order number already uploaded by this user."
+        '202':
+          description: New order number accepted for processing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "New order number accepted for processing."
+        '400':
+          description: Invalid request format.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid request format."
+        '401':
+          description: User is not authenticated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User is not authenticated."
+        '409':
+          description: Order number already uploaded by another user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Order number already uploaded by another user."
+        '422':
+          description: Invalid order number format.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid order number format."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error."
+    get:
+      summary: Get list of uploaded order numbers
+      description: >
+        Returns a list of order numbers uploaded by the authenticated user, sorted by upload time 
+        from newest to oldest. Only accessible to authenticated users. 
+      responses:
+        '200':
+          description: Successful retrieval of orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    number:
+                      type: string
+                      example: "4532015112"
+                      description: Order number.
+                    status:
+                      type: string
+                      enum: [NEW, PROCESSING, INVALID, PROCESSED]
+                      example: "PROCESSED"
+                      description: Processing status of the order.
+                    accrual:
+                      type: number
+                      format: float
+                      example: 500
+                      description: Reward points accrued for the order (if applicable).
+                    uploaded_at:
+                      type: string
+                      format: date-time
+                      example: "2020-12-10T15:15:45+03:00"
+                      description: Upload time of the order in RFC3339 format.
+        '204':
+          description: No data available for response.
+        '401':
+          description: User is not authorized.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User is not authenticated."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error."
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+  
+  /api/user/balance/withdraw:
+    post:
+      summary: Withdraw loyalty points
+      description: >
+        Allows an authenticated user to withdraw loyalty points from their balance for a new hypothetical order. 
+        The request will be registered successfully if the user has sufficient points, and the provided order number is valid.
+      operationId: withdrawBalance
+      requestBody:
+        description: Withdrawal request data
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order:
+                  type: string
+                  description: Hypothetical order number for which the points are withdrawn.
+                  example: "4532015112"
+                sum:
+                  type: number
+                  format: float
+                  description: Amount of points to be withdrawn.
+                  example: 751
+              required:
+                - order
+                - sum
+      responses:
+        '200':
+          description: Withdrawal request processed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Withdrawal request registered successfully."
+        '401':
+          description: User is not authenticated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User is not authenticated."
+        '402':
+          description: Insufficient funds in the account.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Insufficient funds for withdrawal."
+        '422':
+          description: Invalid order number.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid order number."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error."
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+
+  /api/user/withdrawals:
+    get:
+      summary: Get withdrawal history
+      description: >
+        Returns the withdrawal history of the authenticated user. Withdrawals are sorted by the withdrawal time 
+        from newest to oldest. Only accessible to authenticated users.
+      operationId: getWithdrawals
+      responses:
+        '200':
+          description: Successful retrieval of withdrawal history.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    order:
+                      type: string
+                      description: Order number associated with the withdrawal.
+                      example: "2377225624"
+                    sum:
+                      type: number
+                      format: float
+                      description: Amount of points withdrawn.
+                      example: 500
+                    processed_at:
+                      type: string
+                      format: date-time
+                      description: Time when the withdrawal was processed (in RFC3339 format).
+                      example: "2020-12-09T16:09:57+03:00"
+        '204':
+          description: No withdrawal records available.
+        '401':
+          description: User is not authenticated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User is not authenticated."
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal server error."
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+
 components:
   securitySchemes:
     cookieAuth:

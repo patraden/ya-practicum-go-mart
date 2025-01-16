@@ -7,7 +7,6 @@ import (
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
-	"github.com/patraden/ya-practicum-go-mart/internal/app/dto"
 	"github.com/patraden/ya-practicum-go-mart/pkg/queue"
 )
 
@@ -22,11 +21,11 @@ const (
 // order status event.
 type Event struct {
 	ts          int64
-	orderStatus *dto.OrderStatus
+	orderStatus *model.OrderStatus
 	Failures    uint32
 }
 
-func NewEvent(orderStatus *dto.OrderStatus) *Event {
+func NewEvent(orderStatus *model.OrderStatus) *Event {
 	return &Event{
 		ts:          time.Now().UnixMicro(),
 		orderStatus: orderStatus,
@@ -176,7 +175,7 @@ func (qm *QueueManager) enqueue(event *Event) error {
 	return nil
 }
 
-func (qm *QueueManager) submitOrder(orderStatus *dto.OrderStatus) bool {
+func (qm *QueueManager) submitOrder(orderStatus *model.OrderStatus) bool {
 	event := NewEvent(orderStatus)
 	err := qm.enqueue(event)
 

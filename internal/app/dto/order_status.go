@@ -6,16 +6,20 @@ import (
 	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 )
 
-type OrderStatus struct {
-	ID      int64           `json:"order"`
+//easyjson:json
+type OrderStatusAccrual struct {
+	ID      string          `json:"order"`
 	Status  model.Status    `json:"status"`
 	Accrual decimal.Decimal `json:"accrual"`
 }
 
-func (os *OrderStatus) ChangeStatus(status model.Status) *OrderStatus {
-	return &OrderStatus{
-		ID:      os.ID,
-		Status:  status,
-		Accrual: os.Accrual,
-	}
+//easyjson:json
+type OrderStatusResponse struct {
+	ID        string       `json:"number"`
+	Status    model.Status `json:"status"`
+	Accrual   float64      `json:"accrual,omitempty"`
+	CreatedAt string       `json:"uploaded_at"`
 }
+
+//easyjson:json
+type OrderStatusResponseBatch []OrderStatusResponse

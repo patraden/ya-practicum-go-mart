@@ -13,9 +13,10 @@ import (
 	context "context"
 	reflect "reflect"
 
-	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
-	dto "github.com/patraden/ya-practicum-go-mart/internal/app/dto"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	model "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 )
 
 // MockOrderRepository is a mock of OrderRepository interface.
@@ -57,16 +58,31 @@ func (mr *MockOrderRepositoryMockRecorder) CreateOrder(ctx, order any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepository)(nil).CreateOrder), ctx, order)
 }
 
-// UpdateOrderStatus mocks base method.
-func (m *MockOrderRepository) UpdateOrderStatus(ctx context.Context, orderStatus *dto.OrderStatus) error {
+// GetOrders mocks base method.
+func (m *MockOrderRepository) GetOrders(ctx context.Context, userID uuid.UUID) ([]model.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrderStatus", ctx, orderStatus)
+	ret := m.ctrl.Call(m, "GetOrders", ctx, userID)
+	ret0, _ := ret[0].([]model.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrders indicates an expected call of GetOrders.
+func (mr *MockOrderRepositoryMockRecorder) GetOrders(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrders", reflect.TypeOf((*MockOrderRepository)(nil).GetOrders), ctx, userID)
+}
+
+// UpdateStatus mocks base method.
+func (m *MockOrderRepository) UpdateStatus(ctx context.Context, orderStatus *model.OrderStatus) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStatus", ctx, orderStatus)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateOrderStatus indicates an expected call of UpdateOrderStatus.
-func (mr *MockOrderRepositoryMockRecorder) UpdateOrderStatus(ctx, orderStatus any) *gomock.Call {
+// UpdateStatus indicates an expected call of UpdateStatus.
+func (mr *MockOrderRepositoryMockRecorder) UpdateStatus(ctx, orderStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateOrderStatus), ctx, orderStatus)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatus), ctx, orderStatus)
 }

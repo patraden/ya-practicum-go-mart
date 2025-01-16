@@ -8,8 +8,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
-
-	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 )
 
 func IsRetryableError(err error) bool {
@@ -35,11 +33,10 @@ func WithRetry(
 	ctx context.Context,
 	boff backoff.BackOff,
 	log *zerolog.Logger,
-	uniqueViolationError error,
-	query QueryFunc,
+	dbOP func() error,
 ) error {
 	operation := func() error {
-		err := query()
+		err := dbOP()
 		if err == nil {
 			return nil
 		}
@@ -53,18 +50,8 @@ func WithRetry(
 			return err
 		}
 
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			return backoff.Permanent(uniqueViolationError)
-		}
-
 		return backoff.Permanent(err)
 	}
 
-	err := backoff.Retry(operation, backoff.WithContext(boff, ctx))
-	if err != nil {
-		return e.Wrap("retry error", err)
-	}
-
-	return nil
+	return backoff.Retry(operation, backoff.WithContext(boff, ctx))
 }

@@ -13,10 +13,18 @@ docker-up:
 docker-down:
 	docker-compose -f $(DOCKER_COMPOSE_PATH) down
 
+.PHONY: docker-stop
+docker-stop:
+	docker-compose -f $(DOCKER_COMPOSE_PATH) stop
+
 .PHONY: docker-rebuild
 docker-rebuild: docker-down
 	docker-compose -f $(DOCKER_COMPOSE_PATH) build --no-cache
 	docker-compose -f $(DOCKER_COMPOSE_PATH) up -d
+
+.PHONY: docker-build
+docker-build: 
+	@docker-compose -f $(DOCKER_COMPOSE_PATH) build gophermart
 
 .PHONY: test
 test:
@@ -25,7 +33,7 @@ test:
 
 .PHONY: clean
 clean:
-	@rm -f ./cmd/gothermart/gothermart
+	@rm -f ./cmd/gophermart/gophermart
 	@rm -f ./coverage.out
 
 .PHONY: goose-status
@@ -47,11 +55,14 @@ sqlc:
 .PHONY: code
 code:
 	@easyjson -all internal/app/dto/user_credentials.go
-	@easyjson -all internal/app/domain/model/user_balance.go
+	@easyjson -all -omit_empty internal/app/dto/order_status.go
+	@easyjson -all internal/app/dto/withdrawal.go
+	@easyjson -all internal/app/dto/user_balance.go
 	@mockgen -source=internal/app/repository/user_repository.go -destination=internal/app/mock/user_repository.go -package=mock UserRepository
 	@mockgen -source=internal/app/repository/order_repository.go -destination=internal/app/mock/order_repository.go -package=mock OrderRepository
-	@mockgen -source=internal/app/usecase/usecase.go -destination=internal/app/mock/usecase.go -package=mock IUserUseCase
-	@mockgen -source=internal/app/integration/accrual/client.go -destination=internal/app/mock/accrual_client.go -package=mock Client
+	@mockgen -source=internal/app/repository/transactions_repository.go -destination=internal/app/mock/transactions_repository.go -package=mock OrderTransactionsRepository
+	@mockgen -source=internal/app/usecase/usecase.go -destination=internal/app/mock/usecase.go -package=mock IUserUseCase,ITransactionsUseCase 
+	@mockgen -source=internal/app/integration/accrual/client.go -destination=internal/app/mock/accrual_client.go -package=mock IClient
 
 .PHONY: lint
 lint:
@@ -60,3 +71,22 @@ lint:
 	@gofumpt -w ./cmd/gophermart ./pkg
 	@go vet -vettool=$(VETTOOL) ./...
 	@golangci-lint run ./...
+
+
+.PHONY: build
+build: clean
+	@go build -buildvcs=false -o cmd/gophermart/gophermart ./cmd/gophermart
+
+
+.PHONY: gophermarttest
+gophermarttest:
+	@gophermarttest \
+		-test.v -test.run=^TestGophermart$ \
+		-gophermart-binary-path=cmd/gophermart/gophermart \
+		-gophermart-host=localhost \
+		-gophermart-port=8080 \
+		-gophermart-database-uri="postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" \
+		-accrual-binary-path=cmd/accrual/accrual_darwin_arm64 \
+		-accrual-host=localhost \
+		-accrual-port=8081 \
+		-accrual-database-uri="postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable"

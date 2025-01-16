@@ -7,9 +7,10 @@ import (
 	"github.com/rs/zerolog"
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
+	q "github.com/patraden/ya-practicum-go-mart/internal/app/postgres/queries"
 )
 
-type QueryFunc = func() error
+type QueryFunc = func(*q.Queries) error
 
 type Database struct {
 	connString string
@@ -46,6 +47,8 @@ func (pg *Database) Init(ctx context.Context) error {
 	if err != nil {
 		return e.Wrap("failed to parse connection string", err)
 	}
+
+	config.MaxConns = 30
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

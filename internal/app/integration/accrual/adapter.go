@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/patraden/ya-practicum-go-mart/internal/app/dto"
+	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/repository"
 )
 
@@ -34,7 +34,7 @@ type Adapter struct {
 }
 
 func NewAdapter(
-	client Client,
+	client IClient,
 	repo repository.OrderRepository,
 	queueCapacity int,
 	jobDelayDLQ time.Duration,
@@ -60,7 +60,7 @@ func NewAdapter(
 	}
 }
 
-func (adp *Adapter) SubmitOrder(orderStatus *dto.OrderStatus) bool {
+func (adp *Adapter) SubmitOrder(orderStatus *model.OrderStatus) bool {
 	return adp.qmgr.submitOrder(orderStatus)
 }
 

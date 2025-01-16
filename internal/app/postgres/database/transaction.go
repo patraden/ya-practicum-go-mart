@@ -4,16 +4,18 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+
+	q "github.com/patraden/ya-practicum-go-mart/internal/app/postgres/queries"
 )
 
 // query function wrapper into database transaction.
-func WithTransaction(
+func WithinTrx(
 	ctx context.Context,
-	queryfn QueryFunc,
 	connPool ConnenctionPool,
 	trxOptions pgx.TxOptions,
+	queryfn QueryFunc,
 ) QueryFunc {
-	return func() (err error) {
+	return func(queries *q.Queries) (err error) {
 		trx, beginErr := connPool.BeginTx(ctx, trxOptions)
 		if beginErr != nil {
 			err = beginErr
@@ -31,7 +33,7 @@ func WithTransaction(
 			}
 		}()
 
-		if fnErr := queryfn(); fnErr != nil {
+		if fnErr := queryfn(queries.WithTx(trx)); fnErr != nil {
 			return fnErr
 		}
 

@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
+
+	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 )
 
 type OrderStatusEnum string
@@ -60,19 +61,22 @@ func (ns NullOrderStatusEnum) Value() (driver.Value, error) {
 }
 
 type Order struct {
-	ID        int64            `db:"id"`
-	Userid    pgtype.UUID      `db:"userid"`
-	CreatedAt pgtype.Timestamp `db:"created_at"`
-	Status    OrderStatusEnum  `db:"status"`
-	UpdatedAt pgtype.Timestamp `db:"updated_at"`
+	ID             int64           `db:"id"`
+	Userid         uuid.UUID       `db:"userid"`
+	CreatedAt      time.Time       `db:"created_at"`
+	Status         model.Status    `db:"status"`
+	Accrual        decimal.Decimal `db:"accrual"`
+	UpdatedAt      time.Time       `db:"updated_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
 }
 
 type OrderTransaction struct {
-	Orderid   int64            `db:"orderid"`
-	Userid    pgtype.UUID      `db:"userid"`
-	IsDebit   bool             `db:"is_debit"`
-	Amount    pgtype.Numeric   `db:"amount"`
-	CreatedAt pgtype.Timestamp `db:"created_at"`
+	Orderid        int64           `db:"orderid"`
+	Userid         uuid.UUID       `db:"userid"`
+	IsDebit        bool            `db:"is_debit"`
+	Amount         decimal.Decimal `db:"amount"`
+	CreatedAt      time.Time       `db:"created_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
 }
 
 type User struct {
@@ -81,15 +85,4 @@ type User struct {
 	Password  []byte    `db:"password"`
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`
-}
-
-type UserBalance struct {
-	Userid    uuid.UUID       `db:"userid"`
-	Balance   decimal.Decimal `db:"balance"`
-	Withdrawn decimal.Decimal `db:"withdrawn"`
-	UpdatedAt time.Time       `db:"updated_at"`
-}
-
-type UserLock struct {
-	Userid uuid.UUID `db:"userid"`
 }

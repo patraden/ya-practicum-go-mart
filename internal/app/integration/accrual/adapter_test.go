@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
-	"github.com/patraden/ya-practicum-go-mart/internal/app/dto"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/integration/accrual"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/logger"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/mock"
@@ -19,7 +19,7 @@ import (
 
 func setupAccrualAdapterTest(t *testing.T, queueCapacity int) (
 	*gomock.Controller,
-	*mock.MockClient,
+	*mock.MockIClient,
 	*mock.MockOrderRepository,
 	*accrual.Adapter,
 ) {
@@ -28,7 +28,7 @@ func setupAccrualAdapterTest(t *testing.T, queueCapacity int) (
 	jobDelayDLQ := 100 * time.Millisecond
 	jobDelayInProgress := 100 * time.Millisecond
 	ctrl := gomock.NewController(t)
-	mockClient := mock.NewMockClient(ctrl)
+	mockClient := mock.NewMockIClient(ctrl)
 	mockRepo := mock.NewMockOrderRepository(ctrl)
 	log := logger.NewLogger(zerolog.DebugLevel).GetZeroLog()
 	adapter := accrual.NewAdapter(mockClient, mockRepo, queueCapacity, jobDelayInProgress, jobDelayDLQ, log)
@@ -47,21 +47,36 @@ func TestAccrrualAdapter_Stress(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient.EXPECT().IsAlive().Return(true).AnyTimes()
-	mockRepo.EXPECT().UpdateOrderStatus(ctx, gomock.Any()).Return(nil).AnyTimes()
+	mockRepo.EXPECT().UpdateStatus(ctx, gomock.Any()).Return(nil).AnyTimes()
 
-	mockClient.EXPECT().GetOrderStatus(ctx, gomock.Any()).
-		DoAndReturn(func(_ context.Context, orderID int64) (*dto.OrderStatus, error) {
-			return &dto.OrderStatus{ID: orderID, Status: model.StatusProcessing, Accrual: decimal.Zero}, nil
+	mockClient.EXPECT().GetOrderStatus(ctx, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orderID int64, userID uuid.UUID) (*model.OrderStatus, error) {
+			return &model.OrderStatus{
+				ID:      orderID,
+				UserID:  userID,
+				Status:  model.StatusProcessing,
+				Accrual: decimal.Zero,
+			}, nil
 		}).Times(totalOrders)
 
-	mockClient.EXPECT().GetOrderStatus(ctx, gomock.Any()).
-		DoAndReturn(func(_ context.Context, orderID int64) (*dto.OrderStatus, error) {
-			return &dto.OrderStatus{ID: orderID, Status: model.StatusProcessed, Accrual: decimal.Zero}, nil
+	mockClient.EXPECT().GetOrderStatus(ctx, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orderID int64, userID uuid.UUID) (*model.OrderStatus, error) {
+			return &model.OrderStatus{
+				ID:      orderID,
+				UserID:  userID,
+				Status:  model.StatusProcessed,
+				Accrual: decimal.Zero,
+			}, nil
 		}).Times(totalOrders)
 
 	go func() {
 		for i := range totalOrders {
-			orderStatus := &dto.OrderStatus{ID: int64(i), Status: model.StatusNew, Accrual: decimal.Zero}
+			orderStatus := &model.OrderStatus{
+				ID:      int64(i),
+				UserID:  uuid.Nil,
+				Status:  model.StatusNew,
+				Accrual: decimal.Zero,
+			}
 			adapter.SubmitOrder(orderStatus)
 		}
 	}()

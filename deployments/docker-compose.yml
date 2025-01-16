@@ -4,7 +4,7 @@ services:
  
   postgres:
     container_name: postgres
-    image: postgres:15.1
+    image: postgres:15.10
     env_file:
       - ./.env
     healthcheck:
@@ -26,8 +26,23 @@ services:
       context: ./..
       dockerfile: deployments/accrual/Dockerfile
     restart: always
+    depends_on:
+        - postgres
     ports:
-      - "8081:8081"
+      - "${ACCRUAL_PORT}:${ACCRUAL_PORT}"
+
+  gophermart:
+    container_name: gophermart
+    env_file:
+      - ./.env
+    build:
+      context: ./..
+      dockerfile: deployments/gophermart/Dockerfile
+    restart: always
+    depends_on:
+        - postgres
+    ports:
+      - "${GOPHERMART_PORT}:${GOPHERMART_PORT}"
 
 networks:
     gophermart:

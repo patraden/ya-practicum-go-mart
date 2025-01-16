@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +24,7 @@ const (
 	existingUserPassStr = "user2pass"
 )
 
-func SetupUserRepoCreate(
+func SetupUserRepo(
 	t *testing.T,
 	mockPool pgxmock.PgxPoolIface,
 ) (context.Context, *model.User, *model.User, *postgres.UserRepository) {
@@ -56,19 +55,13 @@ func TestUserRepoCreateSuccess(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
-	mockPool.ExpectBegin()
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
 			AddRow(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt))
-	mockPool.
-		ExpectExec(`INSERT INTO user_balances \(userID, balance, withdrawn, updated_at\)`).
-		WithArgs(user.ID, decimal.Zero, decimal.Zero, pgxmock.AnyArg()).
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mockPool.ExpectCommit()
 
 	result, err := repo.CreateUser(ctx, user)
 	require.NoError(t, err)
@@ -89,14 +82,12 @@ func TestUserRepoCreateFailureDuplicateID(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
-	mockPool.ExpectBegin()
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnError(&pgconn.PgError{Code: pgerrcode.UniqueViolation, Message: "UniqueViolation"})
-	mockPool.ExpectRollback()
 
 	res, err := repo.CreateUser(ctx, user)
 	require.ErrorIs(t, err, e.ErrRepoUserIDCollision)
@@ -112,46 +103,16 @@ func TestUserRepoCreateFailureDuplicateUsername(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, exUser, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, exUser, repo := SetupUserRepo(t, mockPool)
 
-	mockPool.ExpectBegin()
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
 			AddRow(exUser.ID, exUser.Username, exUser.Password, exUser.CreatedAt, exUser.UpdatedAt))
-	mockPool.ExpectRollback()
 
 	res, err := repo.CreateUser(ctx, user)
 	require.ErrorIs(t, err, e.ErrRepoUserExists)
-	assert.Nil(t, res)
-
-	err = mockPool.ExpectationsWereMet()
-	require.NoError(t, err)
-}
-
-func TestUserRepoCreateFailureDuplicateBalance(t *testing.T) {
-	t.Parallel()
-
-	mockPool, err := pgxmock.NewPool()
-	require.NoError(t, err)
-
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
-
-	mockPool.ExpectBegin()
-	mockPool.
-		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
-		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
-			AddRow(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt))
-	mockPool.
-		ExpectExec(`INSERT INTO user_balances \(userID, balance, withdrawn, updated_at\)`).
-		WithArgs(user.ID, decimal.Zero, decimal.Zero, pgxmock.AnyArg()).
-		WillReturnError(&pgconn.PgError{Code: pgerrcode.UniqueViolation, Message: "UniqueViolation"})
-	mockPool.ExpectRollback()
-
-	res, err := repo.CreateUser(ctx, user)
-	require.ErrorIs(t, err, e.ErrRepoUserIDCollision)
 	assert.Nil(t, res)
 
 	err = mockPool.ExpectationsWereMet()
@@ -164,49 +125,26 @@ func TestUserRepoCreateRetriable(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
 	// First try
-	mockPool.ExpectBegin()
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnError(&pgconn.PgError{Code: pgerrcode.ConnectionFailure})
-	mockPool.ExpectRollback()
 
 	// Second try
-	mockPool.ExpectBegin()
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnError(&pgconn.PgError{Code: pgerrcode.SQLClientUnableToEstablishSQLConnection})
-	mockPool.ExpectRollback()
 
-	// Third try
-	mockPool.ExpectBegin()
+	// Success on third try
 	mockPool.
 		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
 		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
 			AddRow(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt))
-	mockPool.
-		ExpectExec(`INSERT INTO user_balances \(userID, balance, withdrawn, updated_at\)`).
-		WithArgs(user.ID, decimal.Zero, decimal.Zero, pgxmock.AnyArg()).
-		WillReturnError(&pgconn.PgError{Code: pgerrcode.ConnectionFailure})
-	mockPool.ExpectRollback()
-
-	// Success on thouht try
-	mockPool.ExpectBegin()
-	mockPool.
-		ExpectQuery(`INSERT INTO users \(id, username, password, created_at, updated_at\)`).
-		WithArgs(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "username", "password", "created_at", "updated_at"}).
-			AddRow(user.ID, user.Username, user.Password, user.CreatedAt, user.UpdatedAt))
-	mockPool.
-		ExpectExec(`INSERT INTO user_balances \(userID, balance, withdrawn, updated_at\)`).
-		WithArgs(user.ID, decimal.Zero, decimal.Zero, pgxmock.AnyArg()).
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mockPool.ExpectCommit()
 
 	result, err := repo.CreateUser(ctx, user)
 	require.NoError(t, err)
@@ -227,7 +165,7 @@ func TestUserRepoGetSuccess(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
 	mockPool.
 		ExpectQuery(`SELECT id, username, password, created_at, updated_at`).
@@ -254,7 +192,7 @@ func TestUserRepoGetFailure(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
 	// user not found
 	mockPool.
@@ -286,7 +224,7 @@ func TestUserRepoValidateSuccess(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, _, repo := SetupUserRepo(t, mockPool)
 
 	mockPool.
 		ExpectQuery(`SELECT id, username, password, created_at, updated_at`).
@@ -307,7 +245,7 @@ func TestUserRepoValidateFailure(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
 	require.NoError(t, err)
 
-	ctx, user, exUser, repo := SetupUserRepoCreate(t, mockPool)
+	ctx, user, exUser, repo := SetupUserRepo(t, mockPool)
 
 	// User not found
 	mockPool.
@@ -336,63 +274,6 @@ func TestUserRepoValidateFailure(t *testing.T) {
 
 	_, err = repo.ValidateUser(ctx, user.Username, userPassStr)
 	require.ErrorIs(t, err, e.ErrRepoUserPassMismatch)
-
-	err = mockPool.ExpectationsWereMet()
-	require.NoError(t, err)
-}
-
-func TestUserRepoGetBalanceSuccess(t *testing.T) {
-	t.Parallel()
-
-	mockPool, err := pgxmock.NewPool()
-	require.NoError(t, err)
-
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
-
-	mockPool.
-		ExpectQuery(`SELECT userID, balance, withdrawn, updated_at`).
-		WithArgs(user.ID).
-		WillReturnRows(pgxmock.NewRows([]string{"userID", "balance", "withdrawn", "updated_at"}).
-			AddRow(user.ID, decimal.Zero, decimal.Zero, user.UpdatedAt))
-
-	result, err := repo.GetUserBalance(ctx, user.ID)
-	require.NoError(t, err)
-
-	require.Equal(t, user.ID, result.UserID)
-	assert.Equal(t, result.Balance, decimal.Zero)
-	assert.Equal(t, result.Withdrawn, decimal.Zero)
-
-	err = mockPool.ExpectationsWereMet()
-	require.NoError(t, err)
-}
-
-func TestUserRepoGetBalanceFailure(t *testing.T) {
-	t.Parallel()
-
-	mockPool, err := pgxmock.NewPool()
-	require.NoError(t, err)
-
-	ctx, user, _, repo := SetupUserRepoCreate(t, mockPool)
-
-	// User balance not found
-	mockPool.
-		ExpectQuery(`SELECT userID, balance, withdrawn, updated_at`).
-		WithArgs(user.ID).
-		WillReturnError(sql.ErrNoRows)
-
-	_, err = repo.GetUserBalance(ctx, user.ID)
-	require.ErrorIs(t, err, e.ErrRepoUserBalanceNotFound)
-
-	// arbitrary error
-	mockPool.
-		ExpectQuery(`SELECT userID, balance, withdrawn, updated_at`).
-		WithArgs(user.ID).
-		WillReturnError(&pgconn.PgError{Code: pgerrcode.AdminShutdown})
-
-	_, err = repo.GetUserBalance(ctx, user.ID)
-	var pgErr *pgconn.PgError
-	require.ErrorAs(t, err, &pgErr)
-	assert.Equal(t, pgerrcode.AdminShutdown, pgErr.Code)
 
 	err = mockPool.ExpectationsWereMet()
 	require.NoError(t, err)

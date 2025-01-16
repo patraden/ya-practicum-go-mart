@@ -1,20 +1,16 @@
 package model
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 )
 
-//easyjson:json
 type UserBalance struct {
 	UserID    uuid.UUID       `json:"-"`
 	Balance   decimal.Decimal `json:"current"`
 	Withdrawn decimal.Decimal `json:"withdrawn"`
-	UpdatedAt time.Time       `json:"-"`
 }
 
 func NewUserBalance(userID uuid.UUID) *UserBalance {
@@ -22,7 +18,6 @@ func NewUserBalance(userID uuid.UUID) *UserBalance {
 		UserID:    userID,
 		Balance:   decimal.Zero,
 		Withdrawn: decimal.Zero,
-		UpdatedAt: time.Now(),
 	}
 }
 

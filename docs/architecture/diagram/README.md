@@ -10,12 +10,6 @@ CREATE TABLE "Orders" (
   "uploaded_at" timestamp
 );
 
-CREATE TABLE "OrderStatus" (
-  "orderId" integer PRIMARY KEY,
-  "status" enum,
-  "updated_at" timestamp
-);
-
 CREATE TABLE "Users" (
   "id" uuid PRIMARY KEY,
   "username" varchar,

@@ -2,10 +2,10 @@ package accrual_test
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,6 @@ import (
 
 	e "github.com/patraden/ya-practicum-go-mart/internal/app/domain/errors"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
-	"github.com/patraden/ya-practicum-go-mart/internal/app/dto"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/integration/accrual"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/logger"
 	"github.com/patraden/ya-practicum-go-mart/internal/app/mock"
@@ -22,20 +21,25 @@ import (
 
 func setupOrderEventHandlerTest(t *testing.T) (
 	*gomock.Controller,
-	*mock.MockClient,
+	*mock.MockIClient,
 	*mock.MockOrderRepository,
 	*accrual.OrderEventHandler,
-	*dto.OrderStatus,
+	*model.OrderStatus,
 	*accrual.Event,
 ) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
-	mockClient := mock.NewMockClient(ctrl)
+	mockClient := mock.NewMockIClient(ctrl)
 	mockRepo := mock.NewMockOrderRepository(ctrl)
 	handler := accrual.NewOrderEventHandler(mockClient, mockRepo)
 
-	orderStatus := &dto.OrderStatus{ID: 1, Status: "NEW", Accrual: decimal.Zero}
+	orderStatus := &model.OrderStatus{
+		ID:      1,
+		UserID:  uuid.Nil,
+		Status:  "NEW",
+		Accrual: decimal.Zero,
+	}
 	event := accrual.NewEvent(orderStatus)
 
 	return ctrl, mockClient, mockRepo, handler, orderStatus, event
@@ -61,11 +65,11 @@ func TestOrderEventHandler_Handle(t *testing.T) {
 	t.Run("Client GetOrderStatus error", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl, mockClient, _, handler, _, event := setupOrderEventHandlerTest(t)
+		ctrl, mockClient, _, handler, orderStatus, event := setupOrderEventHandlerTest(t)
 		defer ctrl.Finish()
 
 		mockClient.EXPECT().IsAlive().Return(true)
-		mockClient.EXPECT().GetOrderStatus(ctx, int64(1)).Return(nil, e.ErrTesting)
+		mockClient.EXPECT().GetOrderStatus(ctx, orderStatus.ID, orderStatus.UserID).Return(nil, e.ErrTesting)
 
 		_, err := handler.Handle(ctx, event)
 		require.Contains(t, err.Error(), "accrual system error")
@@ -79,8 +83,8 @@ func TestOrderEventHandler_Handle(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockClient.EXPECT().IsAlive().Return(true)
-		mockClient.EXPECT().GetOrderStatus(ctx, int64(1)).Return(orderStatus, nil)
-		mockRepo.EXPECT().UpdateOrderStatus(ctx, orderStatus).Return(e.ErrTesting)
+		mockClient.EXPECT().GetOrderStatus(ctx, orderStatus.ID, orderStatus.UserID).Return(orderStatus, nil)
+		mockRepo.EXPECT().UpdateStatus(ctx, orderStatus).Return(e.ErrTesting)
 
 		_, err := handler.Handle(ctx, event)
 		require.Contains(t, err.Error(), "repo error")
@@ -95,8 +99,8 @@ func TestOrderEventHandler_Handle(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockClient.EXPECT().IsAlive().Return(true)
-		mockClient.EXPECT().GetOrderStatus(ctx, int64(1)).Return(orderStatus, nil)
-		mockRepo.EXPECT().UpdateOrderStatus(ctx, orderStatus).Return(nil)
+		mockClient.EXPECT().GetOrderStatus(ctx, orderStatus.ID, orderStatus.UserID).Return(orderStatus, nil)
+		mockRepo.EXPECT().UpdateStatus(ctx, orderStatus).Return(nil)
 
 		_, err := handler.Handle(ctx, event)
 		require.NoError(t, err)
@@ -126,22 +130,27 @@ func TestOrderEventHandler_OrderJobFn_Success(t *testing.T) {
 	orderStatus = orderStatus.ChangeStatus(model.StatusProcessing)
 
 	mockClient.EXPECT().IsAlive().Return(true).Times(3)
-	mockClient.EXPECT().GetOrderStatus(ctx, int64(1)).Return(orderStatus, nil).Times(3)
-	mockRepo.EXPECT().UpdateOrderStatus(ctx, orderStatus).Return(nil).Times(3)
+	mockClient.EXPECT().GetOrderStatus(ctx, orderStatus.ID, orderStatus.UserID).Return(orderStatus, nil).Times(3)
+	mockRepo.EXPECT().UpdateStatus(ctx, orderStatus).Return(nil).Times(3)
 
-	orderStatusProcessed := &dto.OrderStatus{ID: 2, Status: "PROCESSED", Accrual: decimal.Zero}
+	orderProcessed := &model.OrderStatus{
+		ID:      2,
+		UserID:  uuid.Nil,
+		Status:  "PROCESSED",
+		Accrual: decimal.Zero,
+	}
 
 	mockClient.EXPECT().IsAlive().Return(true).Times(2)
-	mockClient.EXPECT().GetOrderStatus(ctx, int64(2)).Return(orderStatusProcessed, nil).Times(2)
-	mockRepo.EXPECT().UpdateOrderStatus(ctx, orderStatusProcessed).Return(nil).Times(2)
+	mockClient.EXPECT().GetOrderStatus(ctx, orderProcessed.ID, orderProcessed.UserID).Return(orderProcessed, nil).Times(2)
+	mockRepo.EXPECT().UpdateStatus(ctx, orderProcessed).Return(nil).Times(2)
 
 	jobFn := handler.OrderJobFn(ctx, qmanager, log)
 
 	jobFn(1, event)
 	jobFn(2, event)
 	jobFn(3, event)
-	jobFn(4, accrual.NewEvent(orderStatusProcessed))
-	jobFn(5, accrual.NewEvent(orderStatusProcessed))
+	jobFn(4, accrual.NewEvent(orderProcessed))
+	jobFn(5, accrual.NewEvent(orderProcessed))
 
 	assert.Equal(t, int32(0), qmanager.QueueSize(accrual.EventTypeNew))
 	assert.Equal(t, int32(1), qmanager.QueueSize(accrual.EventTypeInProgress), "one event in progress")
@@ -160,18 +169,16 @@ func TestOrderEventHandler_OrderJobFn_RetryOnTooManyRequests(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	log := logger.NewLogger(zerolog.DebugLevel).GetZeroLog()
 	qmanager := getTestQueueManager(t)
-	ctrl, mockClient, _, handler, _, event := setupOrderEventHandlerTest(t)
+	ctrl, mockClient, _, handler, orderStatus, event := setupOrderEventHandlerTest(t)
 
 	defer ctrl.Finish()
 
-	waitErr := &e.AccrualClientError{
-		StatusCode: http.StatusTooManyRequests,
+	waitErr := &e.AccrualTooManyRequestsError{
 		RetryAfter: 10 * time.Second,
-		Err:        e.ErrTesting,
 	}
 
 	mockClient.EXPECT().IsAlive().Return(true)
-	mockClient.EXPECT().GetOrderStatus(ctx, int64(1)).Return(nil, waitErr)
+	mockClient.EXPECT().GetOrderStatus(ctx, orderStatus.ID, orderStatus.UserID).Return(nil, waitErr)
 
 	go func() {
 		time.Sleep(time.Second)

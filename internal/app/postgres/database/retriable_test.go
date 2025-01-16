@@ -94,16 +94,6 @@ func DatabaseWithRetryTests(t *testing.T) []RetryTest {
 			e.ErrTesting,
 			0,
 		},
-		{
-			"Unique violation error",
-			func(attempts *int) error {
-				*attempts++
-
-				return &pgconn.PgError{Code: pgerrcode.UniqueViolation}
-			},
-			e.ErrTesting,
-			0,
-		},
 	}
 
 	return tests
@@ -125,7 +115,7 @@ func TestDatabaseWithRetry(t *testing.T) {
 				backoff.WithInitialInterval(time.Millisecond),
 			)
 
-			err := database.WithRetry(ctx, boff, logger, e.ErrTesting, func() error {
+			err := database.WithRetry(ctx, boff, logger, func() error {
 				return tt.query(&attempts)
 			})
 

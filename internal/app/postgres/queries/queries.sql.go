@@ -11,7 +11,81 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+
+	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
 )
+
+const CreateOrder = `-- name: CreateOrder :one
+INSERT INTO orders (id, userid, created_at, status, accrual, updated_at, created_at_epoch)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (id) DO UPDATE 
+SET id = orders.id,
+    userid = orders.userid,
+    created_at = orders.created_at,
+    status = orders.status,
+    accrual = orders.accrual,
+    updated_at = orders.updated_at,
+    created_at_epoch = orders.created_at_epoch
+RETURNING id, userid, created_at, status, accrual, updated_at, created_at_epoch
+`
+
+type CreateOrderParams struct {
+	ID             int64           `db:"id"`
+	Userid         uuid.UUID       `db:"userid"`
+	CreatedAt      time.Time       `db:"created_at"`
+	Status         model.Status    `db:"status"`
+	Accrual        decimal.Decimal `db:"accrual"`
+	UpdatedAt      time.Time       `db:"updated_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
+}
+
+func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, CreateOrder,
+		arg.ID,
+		arg.Userid,
+		arg.CreatedAt,
+		arg.Status,
+		arg.Accrual,
+		arg.UpdatedAt,
+		arg.CreatedAtEpoch,
+	)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.Userid,
+		&i.CreatedAt,
+		&i.Status,
+		&i.Accrual,
+		&i.UpdatedAt,
+		&i.CreatedAtEpoch,
+	)
+	return i, err
+}
+
+const CreateOrderAccrual = `-- name: CreateOrderAccrual :exec
+INSERT INTO order_transactions 
+(orderId, userId, is_debit, amount, created_at, created_at_epoch)
+VALUES ($1, $2, TRUE, $3, $4, $5)
+`
+
+type CreateOrderAccrualParams struct {
+	Orderid        int64           `db:"orderid"`
+	Userid         uuid.UUID       `db:"userid"`
+	Amount         decimal.Decimal `db:"amount"`
+	CreatedAt      time.Time       `db:"created_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
+}
+
+func (q *Queries) CreateOrderAccrual(ctx context.Context, arg CreateOrderAccrualParams) error {
+	_, err := q.db.Exec(ctx, CreateOrderAccrual,
+		arg.Orderid,
+		arg.Userid,
+		arg.Amount,
+		arg.CreatedAt,
+		arg.CreatedAtEpoch,
+	)
+	return err
+}
 
 const CreateUser = `-- name: CreateUser :one
 INSERT INTO users (id, username, password, created_at, updated_at)
@@ -52,26 +126,75 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const CreateUserBalances = `-- name: CreateUserBalances :exec
-INSERT INTO user_balances (userID, balance, withdrawn, updated_at)
-VALUES ($1, $2, $3, $4)
+const CreateUserWithdrawal = `-- name: CreateUserWithdrawal :one
+WITH order_balance AS (
+  SELECT
+   COALESCE(SUM(CASE WHEN trx.is_debit THEN trx.amount ELSE -trx.amount END), 0)::DECIMAL(12, 2) AS balance
+  FROM order_transactions trx
+  WHERE trx.userId = $2
+)
+INSERT INTO order_transactions 
+(orderId, userId, is_debit, amount, created_at, created_at_epoch)
+SELECT $1, $2, FALSE, $3, $4, $5
+FROM order_balance
+WHERE order_balance.balance - $3 >= 0
+RETURNING orderId
 `
 
-type CreateUserBalancesParams struct {
-	Userid    uuid.UUID       `db:"userid"`
-	Balance   decimal.Decimal `db:"balance"`
-	Withdrawn decimal.Decimal `db:"withdrawn"`
-	UpdatedAt time.Time       `db:"updated_at"`
+type CreateUserWithdrawalParams struct {
+	Orderid        int64           `db:"orderid"`
+	Userid         uuid.UUID       `db:"userid"`
+	Amount         decimal.Decimal `db:"amount"`
+	CreatedAt      time.Time       `db:"created_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
 }
 
-func (q *Queries) CreateUserBalances(ctx context.Context, arg CreateUserBalancesParams) error {
-	_, err := q.db.Exec(ctx, CreateUserBalances,
+func (q *Queries) CreateUserWithdrawal(ctx context.Context, arg CreateUserWithdrawalParams) (int64, error) {
+	row := q.db.QueryRow(ctx, CreateUserWithdrawal,
+		arg.Orderid,
 		arg.Userid,
-		arg.Balance,
-		arg.Withdrawn,
-		arg.UpdatedAt,
+		arg.Amount,
+		arg.CreatedAt,
+		arg.CreatedAtEpoch,
 	)
-	return err
+	var orderid int64
+	err := row.Scan(&orderid)
+	return orderid, err
+}
+
+const GetOrders = `-- name: GetOrders :many
+SELECT id, userid, created_at, status, accrual, updated_at, created_at_epoch
+FROM orders
+WHERE userID = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetOrders(ctx context.Context, userid uuid.UUID) ([]Order, error) {
+	rows, err := q.db.Query(ctx, GetOrders, userid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.Userid,
+			&i.CreatedAt,
+			&i.Status,
+			&i.Accrual,
+			&i.UpdatedAt,
+			&i.CreatedAtEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const GetUser = `-- name: GetUser :one
@@ -94,19 +217,89 @@ func (q *Queries) GetUser(ctx context.Context, username string) (User, error) {
 }
 
 const GetUserBalances = `-- name: GetUserBalances :one
-SELECT userID, balance, withdrawn, updated_at
-FROM user_balances 
+SELECT 
+  userID AS userid, 
+  SUM(CASE WHEN is_debit THEN amount ELSE -amount END)::DECIMAL(12, 2) AS balance, 
+  SUM(CASE WHEN is_debit THEN 0 ELSE amount END)::DECIMAL(12, 2) AS withdrawn
+FROM order_transactions
 WHERE userID = $1
+GROUP BY userID
 `
 
-func (q *Queries) GetUserBalances(ctx context.Context, userid uuid.UUID) (UserBalance, error) {
+type GetUserBalancesRow struct {
+	Userid    uuid.UUID       `db:"userid"`
+	Balance   decimal.Decimal `db:"balance"`
+	Withdrawn decimal.Decimal `db:"withdrawn"`
+}
+
+func (q *Queries) GetUserBalances(ctx context.Context, userid uuid.UUID) (GetUserBalancesRow, error) {
 	row := q.db.QueryRow(ctx, GetUserBalances, userid)
-	var i UserBalance
-	err := row.Scan(
-		&i.Userid,
-		&i.Balance,
-		&i.Withdrawn,
-		&i.UpdatedAt,
-	)
+	var i GetUserBalancesRow
+	err := row.Scan(&i.Userid, &i.Balance, &i.Withdrawn)
 	return i, err
+}
+
+const GetUserWithdrawals = `-- name: GetUserWithdrawals :many
+SELECT orderId, amount, created_at, created_at_epoch
+FROM order_transactions
+WHERE userId = $1 AND NOT is_debit
+ORDER BY created_at DESC
+`
+
+type GetUserWithdrawalsRow struct {
+	Orderid        int64           `db:"orderid"`
+	Amount         decimal.Decimal `db:"amount"`
+	CreatedAt      time.Time       `db:"created_at"`
+	CreatedAtEpoch int64           `db:"created_at_epoch"`
+}
+
+func (q *Queries) GetUserWithdrawals(ctx context.Context, userid uuid.UUID) ([]GetUserWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, GetUserWithdrawals, userid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserWithdrawalsRow
+	for rows.Next() {
+		var i GetUserWithdrawalsRow
+		if err := rows.Scan(
+			&i.Orderid,
+			&i.Amount,
+			&i.CreatedAt,
+			&i.CreatedAtEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const LockUserTransactions = `-- name: LockUserTransactions :exec
+SELECT pg_advisory_xact_lock($1)
+`
+
+func (q *Queries) LockUserTransactions(ctx context.Context, pgAdvisoryXactLock int64) error {
+	_, err := q.db.Exec(ctx, LockUserTransactions, pgAdvisoryXactLock)
+	return err
+}
+
+const UpdateOrderStatus = `-- name: UpdateOrderStatus :exec
+UPDATE orders
+SET status = $1, accrual = $2, updated_at = now()
+WHERE id = $3
+`
+
+type UpdateOrderStatusParams struct {
+	Status  model.Status    `db:"status"`
+	Accrual decimal.Decimal `db:"accrual"`
+	ID      int64           `db:"id"`
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
+	_, err := q.db.Exec(ctx, UpdateOrderStatus, arg.Status, arg.Accrual, arg.ID)
+	return err
 }

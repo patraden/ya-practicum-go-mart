@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,21 @@ type User struct {
 func NewUser(username string) *User {
 	return &User{
 		ID:        uuid.New(),
+		Username:  username,
+		Password:  []byte{},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+}
+
+func NewUserWithID(id string, username string) *User {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return NewUser(username)
+	}
+
+	return &User{
+		ID:        uid,
 		Username:  username,
 		Password:  []byte{},
 		CreatedAt: time.Now(),
@@ -50,4 +66,8 @@ func (u *User) NoPassword() *User {
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}
+}
+
+func LockID(uid uuid.UUID) int64 {
+	return int64(binary.BigEndian.Uint64(uid[:8]))
 }

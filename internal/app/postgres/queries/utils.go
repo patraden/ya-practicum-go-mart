@@ -1,6 +1,10 @@
 package sql
 
-import "github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
+import (
+	"github.com/google/uuid"
+
+	"github.com/patraden/ya-practicum-go-mart/internal/app/domain/model"
+)
 
 func CreateUserParamsFromModel(user *model.User) *CreateUserParams {
 	return &CreateUserParams{
@@ -32,20 +36,73 @@ func (sqluser User) NoPassword() User {
 	}
 }
 
-func CreateUserBalancesParamsFromModel(balance *model.UserBalance) *CreateUserBalancesParams {
-	return &CreateUserBalancesParams{
-		Userid:    balance.UserID,
-		Balance:   balance.Balance,
-		Withdrawn: balance.Withdrawn,
-		UpdatedAt: balance.UpdatedAt,
+func ToModelUserBalance(row GetUserBalancesRow) *model.UserBalance {
+	return &model.UserBalance{
+		UserID:    row.Userid,
+		Balance:   row.Balance,
+		Withdrawn: row.Withdrawn,
 	}
 }
 
-func ToModelUserBalance(balance UserBalance) *model.UserBalance {
-	return &model.UserBalance{
-		UserID:    balance.Userid,
-		Balance:   balance.Balance,
-		Withdrawn: balance.Withdrawn,
-		UpdatedAt: balance.UpdatedAt,
+func CreateOrderParamsFromModel(order *model.Order) *CreateOrderParams {
+	return &CreateOrderParams{
+		ID:             order.ID,
+		Userid:         order.UserID,
+		CreatedAt:      order.CreatedAt,
+		Status:         order.Status,
+		Accrual:        order.Accrual,
+		UpdatedAt:      order.UpdatedAt,
+		CreatedAtEpoch: order.CreatedAtEpoch,
+	}
+}
+
+func ToModelOrder(sqlorder Order) *model.Order {
+	return &model.Order{
+		ID:             sqlorder.ID,
+		UserID:         sqlorder.Userid,
+		Status:         sqlorder.Status,
+		Accrual:        sqlorder.Accrual,
+		CreatedAt:      sqlorder.CreatedAt,
+		UpdatedAt:      sqlorder.UpdatedAt,
+		CreatedAtEpoch: sqlorder.CreatedAtEpoch,
+	}
+}
+
+func UpdateOrderStatusParamsFromStatus(orderStatus *model.OrderStatus) UpdateOrderStatusParams {
+	return UpdateOrderStatusParams{
+		ID:      orderStatus.ID,
+		Status:  orderStatus.Status,
+		Accrual: orderStatus.Accrual,
+	}
+}
+
+func GetCreateUserWithdrawalParamsFromTrx(trx *model.OrderTransaction) CreateUserWithdrawalParams {
+	return CreateUserWithdrawalParams{
+		Orderid:        trx.OrderID,
+		Userid:         trx.UserID,
+		Amount:         trx.Amount,
+		CreatedAt:      trx.CreatedAt,
+		CreatedAtEpoch: trx.CreatedAtEpoch,
+	}
+}
+
+func CreateOrderAccrualParamsFromModel(trx *model.OrderTransaction) CreateOrderAccrualParams {
+	return CreateOrderAccrualParams{
+		Orderid:        trx.OrderID,
+		Userid:         trx.UserID,
+		Amount:         trx.Amount,
+		CreatedAt:      trx.CreatedAt,
+		CreatedAtEpoch: trx.CreatedAtEpoch,
+	}
+}
+
+func ToModelOrderTransaction(row GetUserWithdrawalsRow, userID uuid.UUID, isDebit bool) model.OrderTransaction {
+	return model.OrderTransaction{
+		OrderID:        row.Orderid,
+		UserID:         userID,
+		IsDebit:        isDebit,
+		Amount:         row.Amount,
+		CreatedAt:      row.CreatedAt,
+		CreatedAtEpoch: row.CreatedAtEpoch,
 	}
 }
