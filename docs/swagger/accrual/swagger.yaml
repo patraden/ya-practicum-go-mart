@@ -1,0 +1,167 @@
+openapi: 3.0.0
+
+info:
+  title: Loyalty Points Accrual API
+  description: API for managing accruals
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:43080
+    description: Local development server
+
+paths:
+  /api/goods:
+    post:
+      summary: Register a new mechanic
+      description: Registers a new mechanic for goods with match criteria, reward, and reward type.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                match:
+                  type: string
+                  description: Match pattern for goods.
+                  example: "Milka"
+                reward:
+                  type: number
+                  description: Reward value. Positive numbers are allowed.
+                  example: 10
+                reward_type:
+                  type: string
+                  description: Type of reward. Allowed values are `%` or `pt`.
+                  example: "%"
+              required:
+                - match
+                - reward
+                - reward_type
+      responses:
+        '200':
+          description: Mechanic registered successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Mechanic registered successfully."
+        '400':
+          description: Bad Request - Invalid input data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid input data."
+        '409':
+          description: Conflict - Duplicate mechanic.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Mechanic already exists."
+
+  /api/orders:
+    post:
+      summary: Register a new order
+      description: Allows registering an order with associated goods for accruals.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order:
+                  type: string
+                  description: Unique identifier for the order.
+                  example: "4532015112830366"
+                goods:
+                  type: array
+                  description: List of goods in the order.
+                  items:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                        description: Description of the goods.
+                        example: "Milka"
+                      price:
+                        type: number
+                        format: float
+                        description: Price of the goods.
+                        example: 120
+                    required:
+                      - description
+                      - price
+              required:
+                - order
+                - goods
+      responses:
+        "202":
+          description: Order successfully registered.
+        "400":
+          description: Invalid order data.
+        "409":
+          description: Order already exists.
+
+  /api/orders/{number}:
+    get:
+      summary: "Get information about loyalty points accrual calculation"
+      description: |
+        Retrieves information about the accrual calculation for a specific order.
+        The order's status and calculated loyalty points are returned. The order can be in
+        different states: REGISTERED, INVALID, PROCESSING, or PROCESSED.
+      operationId: getOrderAccrual
+      parameters:
+        - name: number
+          in: path
+          required: true
+          description: "Order number"
+          schema:
+            type: string
+            example: "4532015112830366"
+      responses:
+        '200':
+          description: "Request successfully processed"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    type: string
+                    description: "Order number"
+                    example: "4532015112830366"
+                  status:
+                    type: string
+                    description: "Accrual calculation status"
+                    enum:
+                      - REGISTERED
+                      - INVALID
+                      - PROCESSING
+                      - PROCESSED
+                    example: "PROCESSED"
+                  accrual:
+                    type: integer
+                    description: "Calculated loyalty points"
+                    example: 12
+        '204':
+          description: "Order not registered in the accrual system"
+        '429':
+          description: "Too many requests"
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "No more than N requests per minute allowed"
+        '500':
+          description: "Internal server error"
