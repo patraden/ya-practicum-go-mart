@@ -3,7 +3,6 @@ from diagrams.onprem.queue import Kafka
 from diagrams.onprem.database import PostgreSQL
 from diagrams.programming.language import Go
 from diagrams.generic.database import SQL
-from diagrams.generic.storage import Storage
 
 graph_attr = {
     "splines": "line",
@@ -52,19 +51,18 @@ def main():
             pg = PostgreSQL()
             orders = SQL("Orders")
             users = SQL("Users")
-            balances = SQL("Balances")
-            withdraws = SQL("Withdraws")
+            withdraws = SQL("Transactions")
         
-        with Cluster("Kafka Queue", graph_attr=kafka_cluster_attr):
-            kafka_pending = Kafka("Pending")
-            kafka_processed = Kafka("Processed")
-            kafka_dql = Kafka("DLQ")
+        with Cluster("Accrual System Adapter", graph_attr=kafka_cluster_attr):
+            new_orders = Go("NEN order handler")
+            processed_orders = Go("PENDING order handler")
+            dlq_sanitizer = Go("DLQ Handler")
+            new = Go("NEW Queue")
+            processed = Go("PROCESSING Queue")
+            dql = Go("DLQ")
         
         with Cluster("Accruals Service", graph_attr=accruals_cluster_attr):
             haccruals = Go("GET /api/orders/{number}")
-        
-        with Cluster("Storage", graph_attr=kafka_cluster_attr):
-            fs = Storage("file storage")
         
         with Cluster("Gophermart handlers", graph_attr=gophermart_cluster_attr):
             hregister = Go("POST Register")
@@ -74,40 +72,31 @@ def main():
             hbalance = Go("GET Balance")
             hwithdraw = Go("POST Withdraw")
             hwithdraws = Go("GET Withdraws")
-            orders_buffer = Go("Orders buffer")
-            accruals_processor = Go("Orders updater")
-            
-            #  edges in Gophermart
-            hporders >> Edge(style="dashed") >> orders_buffer
-            hlogin >> Edge(color="transparent") >> accruals_processor
-        
-        with Cluster("Gophermart integrations", graph_attr=gophermart_cluster_attr):
-            ad_accruals = Go("Accruals Adapter")
-            dlq_sanitizer = Go("DLQ Sanitizer")
             
         # Edges for Kafka and fs
-        hporders >> Edge(style="dashed") >> kafka_pending
-        accruals_processor << Edge(style="dashed") << kafka_processed
-        orders_buffer >> Edge(style="dashed") >> kafka_pending
-        orders_buffer >> Edge(style="dashed") >> fs
-        dlq_sanitizer >> Edge(style="dashed") >> kafka_pending
-        dlq_sanitizer << Edge(style="dashed") << kafka_dql
+        hporders >> Edge(style="dashed") >> new
+        dlq_sanitizer >> Edge(style="dashed") >> new
+        dlq_sanitizer >> Edge(style="dashed") >> processed
+        dlq_sanitizer << Edge(style="dashed") << dql
         
         # Edges for database
-        orders << Edge(style="dashed") << [hporders, hgorders, accruals_processor]
+        orders << Edge(style="dashed") << [hporders, hgorders]
         users << Edge(style="dashed") << [hregister, hlogin]
-        balances << Edge(style="dashed") << hbalance
         withdraws << Edge(style="dashed") << hwithdraws
-        balances << Edge(style="dashed") << hwithdraw
         withdraws << Edge(style="dashed") << hwithdraw
+        withdraws << Edge(style="dashed") << hbalance
 
             
         # Edges for Accruals
-        kafka_pending >> Edge(style="dashed") >> ad_accruals
-        kafka_processed << Edge(style="dashed") << ad_accruals
-        kafka_dql << Edge(style="dashed") << ad_accruals
-        haccruals << Edge(style="dashed") << ad_accruals
-
+        new >> Edge(style="dashed") >> new_orders
+        processed << Edge(style="dashed") << new_orders
+        dql << Edge(style="dashed") << new_orders
+        haccruals >> Edge(style="dashed") >> new_orders
+        
+        processed >> Edge(style="dashed") >> processed_orders
+        processed << Edge(style="dashed") << processed_orders
+        dql << Edge(style="dashed") << processed_orders
+        haccruals >> Edge(style="dashed") >> processed_orders
 
 if __name__ == "__main__":
     main()
